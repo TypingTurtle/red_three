@@ -64,7 +64,6 @@ own.
 ```powershell
 git clone https://github.com/TypingTurtle/red_three
 cd red_three
-git checkout red3
 powershell -ExecutionPolicy Bypass -File tools\build.ps1 -Disc "<your Rebel Strike.iso>" -BuildDir build\windows-rs -CMakeArgs "-DR2_GAME=GWRE64"
 build\windows-rs\red_three.exe
 ```
