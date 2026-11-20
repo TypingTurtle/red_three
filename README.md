@@ -1,4 +1,4 @@
-# Red 3
+# Red Three
 
 A fork of [Red Two](https://github.com/gminustwo/red_two) working toward the same kind of port
 for the sequel, **Star Wars: Rogue Squadron III – Rebel Strike** (GameCube, USA, `GWRE64`).
@@ -11,20 +11,20 @@ a Rogue Leader build (`GSWE64`, the default) is unchanged.
 > (cheats, passcode unlocks, cutscene skip, widescreen culling fixes) exist for Rebel Strike yet:
 > its menu pages say so. No game data or code is in this repository: you need your own disc.
 
-### Building Red 3
+### Building Red Three
 
 As for Red Two (below), with `-DR2_GAME=GWRE64` and your Rebel Strike disc image:
 
 ```bash
-tools/build_linux.sh --disc "<your Rebel Strike.iso>" -DR2_GAME=GWRE64 --build-dir build/linux-rs   # -> build/linux-rs/red_3
+tools/build_linux.sh --disc "<your Rebel Strike.iso>" -DR2_GAME=GWRE64 --build-dir build/linux-rs   # -> build/linux-rs/red_three
 ```
 ```powershell
 powershell -ExecutionPolicy Bypass -File tools\build.ps1 -Disc "<your Rebel Strike.iso>" -BuildDir build\windows-rs -CMakeArgs "-DR2_GAME=GWRE64"
-# -> build\windows-rs\red_3.exe
+# -> build\windows-rs\red_three.exe
 ```
 
-Use a build folder of its own per game: each holds that game's recompiled code. Red 3 keeps
-its settings, saves (`GWRE64_A.raw`) and states in a user folder named "Red 3", apart from Red
+Use a build folder of its own per game: each holds that game's recompiled code. Red Three keeps
+its settings, saves (`GWRE64_A.raw`) and states in a user folder named "Red Three", apart from Red
 Two's. It has no releases to update from, so it never checks for updates.
 
 ### What differs from Rogue Leader so far
@@ -45,8 +45,8 @@ Two's. It has no releases to update from, so it never checks for updates.
 
 ### Reporting a Rebel Strike problem
 
-The session log (Linux: `~/.local/share/Red 3/logs`, Windows: `user\logs` next to
-`red_3.exe`) from the start that went wrong is what tells us where it stopped.
+The session log (Linux: `~/.local/share/Red Three/logs`, Windows: `user\logs` next to
+`red_three.exe`) from the start that went wrong is what tells us where it stopped.
 
 ---
 

@@ -50,7 +50,7 @@ int checkCpu() {
     if (!missing[0] && !test) return 0;
     if (!missing[0]) wcscpy_s(missing, L"nothing (R2_CPU_CHECK_TEST)");
 #ifdef R2_GAME_GWRE64
-    const wchar_t* kApp = L"Red 3";
+    const wchar_t* kApp = L"Red Three";
 #else
     const wchar_t* kApp = L"Red Two";
 #endif

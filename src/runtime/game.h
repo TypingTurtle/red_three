@@ -40,7 +40,7 @@ struct Profile {
 // stored zlib-compressed in main.dol (layout.txt: embedded_zlib); the pager pointer is the one
 // its DSI entry 0x8003D190 calls (lis 0x800A / lwz 0x1C28).
 inline constexpr Profile kGame = {
-    "GWRE64", "GWR", "Rebel Strike", "Star Wars: Rogue Squadron III - Rebel Strike", "Red 3", "red_3", nullptr, 0,
+    "GWRE64", "GWR", "Rebel Strike", "Star Wars: Rogue Squadron III - Rebel Strike", "Red Three", "red_three", nullptr, 0,
     0x800A1C28,
     0, 0, 0, 0,
     0,

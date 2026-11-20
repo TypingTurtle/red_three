@@ -204,7 +204,7 @@ if(ANDROID)
 else()
     add_executable(red_two ${R2_RUNTIME_SOURCES})
     if(R2_GAME STREQUAL "GWRE64")
-        set_target_properties(red_two PROPERTIES OUTPUT_NAME red_3)  # Red 3
+        set_target_properties(red_two PROPERTIES OUTPUT_NAME red_three)  # Red Three
     endif()
 endif()
 target_include_directories(red_two PRIVATE src/runtime "${GEN_DIR}" extern/aurora/lib)
