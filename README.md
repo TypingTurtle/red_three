@@ -36,9 +36,9 @@ Two's. It has no releases to update from, so it never checks for updates.
   page-fault entry calls (`0x800A1C28`, entry `0x8003D190`; same 716-byte frame as Rogue Leader),
   and in `config/GWRE64/`: the OS context functions, `OSReport`, `PPCHalt` and the scheduler's
   idle loop, found by their instruction patterns.
-- **Not yet found:** MusyX's `salBuildCommandList` (Rogue Leader's DSP-overload fix) and the
-  MusyX state the audio timing watches; Rebel Strike seems to carry MusyX in its VM code.
-  Without them, voices may drop when the PC is busy.
+- **MusyX** is linked into the VM code here (Rogue Leader has it in `main.dol`): the
+  DSP-overload fix hooks `salBuildCommandList` at `0x7F664124`, and the audio timing watches
+  MusyX's AI buffer and busy flags, which Rebel Strike keeps in a different order.
 - **Expected work:** split-screen co-op and versus modes (Rogue Leader only ever draws one view),
   on-foot and ground-vehicle missions, the bundled arcade games, and every Rogue Leader-specific
   fix in `src/runtime/hle_game_gswe64.cpp` that Rebel Strike turns out to need.

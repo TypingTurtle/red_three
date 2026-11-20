@@ -11,3 +11,10 @@
 # The loader's VM fault entry (DSI vector stub -> here): builds a 716-byte frame, calls the
 # pager kept at 0x800A1C28 as pager(2, frame) (game.h: pagerPtr), rfi
 8003d190 VMFaultEntry
+80026c9c OSGetTick               # mftb r3; blr
+80031e00 AIInitDMA               # AI DMA start/length registers (0xCC005030..)
+# MusyX, linked into the VM text (Rogue Leader has it in main.dol). r13 = 0x800A88A0.
+7f65a6e0 salCallback             # AI DMA callback: AIInitDMA(next of 4 x 0x280 blocks at r13-24764), salLastTick r13-24780,
+                                 # salLogicIsWaiting r13-24772 / salLogicActive r13-24776 (game.h)
+7f65aa0c salCtrlDsp              # salBuildCommandList + mails 0xBABE0000|size and the list
+7f664124 salBuildCommandList     # nsDelay (r4) < 200 -> base cycles, else more (10430 base, as Rogue Leader)

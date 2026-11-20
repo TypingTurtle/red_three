@@ -20,6 +20,7 @@ hle     PPCHalt
 # enabled, spins on RunQueueBits (r13-26048) until an interrupt handler readies a thread
 idle    80026020
 
-# Not yet: MusyX's salBuildCommandList (Rogue Leader: the DSP-overload fix, hle_musyx.cpp).
-# Rebel Strike's MusyX seems to live in the VM text; without the hook, voices may drop when
-# the host is busy.
+# MusyX: the DSP is emulated as infinitely fast, so a late command list costs it nothing.
+# The CPU-side estimate (time since the AI interrupt) can look like several ms when the
+# host is busy, which made MusyX kill voices as "DSP overload" (src/runtime/hle_musyx.cpp).
+hle     salBuildCommandList

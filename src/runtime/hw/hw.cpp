@@ -1021,7 +1021,9 @@ u64 s_aiDue = 0;           // when the AI DMA block playing now ends
 // and running the synth for the next frame, interrupts enabled). An AI interrupt taken while
 // either is set loses that frame's mix.
 // salAIBufferBase r13-18380 (four 0x280-byte blocks) precedes them.
-constexpr u32 kSalAIBufferBase = game::kGame.salAIBufferBase & 0x01FFFFFFu;  // salLogicIsWaiting +8, salLogicActive +12; 0: not known
+constexpr u32 kSalAIBufferBase = game::kGame.salAIBufferBase & 0x01FFFFFFu;  // 0: not known (game.h)
+constexpr u32 kSalLogicIsWaiting = game::kGame.salLogicIsWaiting & 0x01FFFFFFu;
+constexpr u32 kSalLogicActive = game::kGame.salLogicActive & 0x01FFFFFFu;
 u32 rdPhys32(const u8* p) { return (u32(p[0]) << 24) | (u32(p[1]) << 16) | (u32(p[2]) << 8) | p[3]; }
 // the DMA plays MusyX's buffers (else nothing waits: boot, other AI users)
 bool musyxPlaying() {
@@ -1032,8 +1034,9 @@ bool musyxPlaying() {
 }
 bool musyxFrameBusy() {
     if (!kSalAIBufferBase) return false;
-    const u8* p = physPtr(kSalAIBufferBase + 8, 8);
-    return p && (rdPhys32(p) == 1 || rdPhys32(p + 4) == 1);
+    const u8* w = physPtr(kSalLogicIsWaiting, 4);
+    const u8* a = physPtr(kSalLogicActive, 4);
+    return (w && rdPhys32(w) == 1) || (a && rdPhys32(a) == 1);
 }
 
 void onAi() {

@@ -26,8 +26,9 @@ struct Profile {
     // first virtual page the map covers.
     uint32_t pagerPtr;
     uint32_t vmSlotArrayPtr, vmSlotMapPtr, vmSlots, vmMapBase;
-    // MusyX's salAIBufferBase (hw.cpp; 0: not known - the AI DMA is never taken for MusyX's)
-    uint32_t salAIBufferBase;
+    // MusyX's AI interrupt state (hw.cpp; 0: not known - the AI DMA is never taken for MusyX's):
+    // salAIBufferBase (four 0x280-byte blocks), salLogicIsWaiting and salLogicActive
+    uint32_t salAIBufferBase, salLogicIsWaiting, salLogicActive;
     // A byte the stall reports show as "level" (profiler.cpp; 0: none)
     uint32_t stallLevelAddr;
     // The game's own code for Gecko/AR codes that write into code (codes.cpp): the SDK text and
@@ -43,7 +44,9 @@ inline constexpr Profile kGame = {
     "GWRE64", "GWR", "Rebel Strike", "Star Wars: Rogue Squadron III - Rebel Strike", "Red Three", "red_three", nullptr, 0,
     0x800A1C28,
     0, 0, 0, 0,
-    0,
+    // MusyX (in the VM text): salCallback 0x7F65A6E0, r13 = 0x800A88A0. The flags come before
+    // the buffer pointer here: active r13-24776, waiting r13-24772, buffer r13-24764
+    0x800A27E4, 0x800A27DC, 0x800A27D8,
     0,
     0x80003100u, 0x80041E60u, 0x7F200000u, 0x7F6670A8u,
 };
@@ -53,7 +56,7 @@ inline constexpr Profile kGame = {
     "gminustwo/red_two", 0,
     0x80095D00,
     0x80095CD0, 0x80095CE4, 1536, 0x7F000000,
-    0x000965D4,
+    0x800965D4, 0x800965DC, 0x800965E0,  // r13 = 0x8009ADA0: -18380, -18372, -18368
     0x800962EC,
     0x80003100u, 0x8005C360u, 0x7FC00000u, 0x7FD9E2F0u,
 };
