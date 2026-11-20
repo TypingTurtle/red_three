@@ -1,235 +1,131 @@
 # Red Three
 
-A fork of [Red Two](https://github.com/gminustwo/red_two) working toward the same kind of port
-for the sequel, **Star Wars: Rogue Squadron III – Rebel Strike** (GameCube, USA, `GWRE64`).
-Red Two's recompiler and runtime are shared; the game is picked at build time (`R2_GAME`), and
-a Rogue Leader build (`GSWE64`, the default) is unchanged.
+An experimental fork of **[Red Two](https://github.com/gminustwo/red_two)** that aims to bring
+**Star Wars: Rogue Squadron III – Rebel Strike** (GameCube, USA, `GWRE64`) to PC the same way
+Red Two brings Rogue Leader.
 
-> **Status: early, not yet booted.** Rebel Strike's code recompiles completely (about 19,900
-> functions, no untranslated instructions) and compiles; the runtime has the essentials for it.
-> Whether it boots is the next thing to find out. None of Rogue Leader's game-side extras
-> (cheats, passcode unlocks, cutscene skip, widescreen culling fixes) exist for Rebel Strike yet:
-> its menu pages say so. No game data or code is in this repository: you need your own disc.
+## Credit where it's due
 
-### Building Red Three
+**Red Three is not original work.** Almost all of it is Red Two, built by
+[gminustwo](https://github.com/gminustwo) and Red Two's contributors: the static recompiler,
+the runtime that stands in for the GameCube's hardware, the virtual-memory pager, the MusyX
+audio emulation, the Aurora graphics bridge and its patches, the launcher and menus, save
+states, mods, cheats and RetroAchievements support. None of that is ours, and nothing in this
+repository claims otherwise.
 
-As for Red Two (below), with `-DR2_GAME=GWRE64` and your Rebel Strike disc image:
+What this fork adds is comparatively small: the changes needed to point Red Two's machinery at
+a second game, and the addresses found in Rebel Strike's code (see
+[What Red Three changes](#what-red-three-changes)). Every commit after Red Two's
+`354ae8b` is the fork's; everything before it is Red Two's own history.
 
-```bash
-tools/build_linux.sh --disc "<your Rebel Strike.iso>" -DR2_GAME=GWRE64 --build-dir build/linux-rs   # -> build/linux-rs/red_three
-```
+- Red Two's original README, unchanged: [docs/RED_TWO_README.md](docs/RED_TWO_README.md)
+- Red Two's license (MIT, copyright its authors) applies to this repository and is kept as is:
+  [LICENSE](LICENSE)
+- Red Two builds on [Aurora](https://github.com/encounter/aurora) (rendering, window, input) and
+  [rcheevos](https://github.com/RetroAchievements/rcheevos) (RetroAchievements), and so does
+  this fork.
+
+This fork is not affiliated with or endorsed by Red Two's authors. Please don't report Red
+Three problems to Red Two; open them here.
+
+## Status
+
+**Early and untested: Red Three has not booted Rebel Strike yet.**
+
+- Rebel Strike's code recompiles completely: about 19,900 functions, no untranslated
+  instructions, and the generated C++ compiles.
+- The runtime has what the game needs to start: its virtual-memory pager, the OS thread and
+  context functions, the scheduler's idle loop, debug output, and MusyX's audio hooks.
+- Whether it actually boots, and how far it gets, is the next thing to find out.
+
+Things to expect:
+
+- **Graphics problems.** Red Two's renderer patches were written for Rogue Leader.
+- **Split-screen.** Rebel Strike's co-op and versus modes draw two views; Rogue Leader only
+  ever draws one, so these will need their own work.
+- **No game-side extras yet.** Rogue Leader's cheats, passcode unlocks, cutscene skip and
+  widescreen culling fixes are tied to that game's code. For Rebel Strike, the menu says they
+  aren't available.
+
+## You need your own game
+
+This repository contains **no game code or data**. The build recompiles the game from your
+own disc image of Rebel Strike (USA, `GWRE64`) as `.iso`, `.gcm`, `.rvz` or `.wia`. The code
+generated from your disc stays in your build folder: don't share it.
+
+## Building
+
+The requirements are Red Two's (see its [README](docs/RED_TWO_README.md#building-windows)).
+Add `-DR2_GAME=GWRE64` to build Red Three instead of Red Two, and use a build folder of its
+own.
+
+**Windows** (Visual Studio 2022 Build Tools, CMake 3.25+, Ninja, LLVM clang-cl):
+
 ```powershell
+git clone https://github.com/TypingTurtle/red_three
+cd red_three
+git checkout red3
 powershell -ExecutionPolicy Bypass -File tools\build.ps1 -Disc "<your Rebel Strike.iso>" -BuildDir build\windows-rs -CMakeArgs "-DR2_GAME=GWRE64"
-# -> build\windows-rs\red_three.exe
+build\windows-rs\red_three.exe
 ```
 
-Use a build folder of its own per game: each holds that game's recompiled code. Red Three keeps
-its settings, saves (`GWRE64_A.raw`) and states in a user folder named "Red Three", apart from Red
-Two's. It has no releases to update from, so it never checks for updates.
-
-### What differs from Rogue Leader so far
-
-- **Compressed main program.** Rebel Strike stores the code it runs from virtual memory
-  zlib-compressed inside `main.dol` (Rogue Leader's is stored plain). `config/GWRE64/layout.txt`
-  says `embedded_zlib 80200000`, and the recompiler unpacks it (text at `0x7F200000`).
-- **Its own addresses** for what the runtime relies on (`src/runtime/game.h`): the VM pager the
-  page-fault entry calls (`0x800A1C28`, entry `0x8003D190`; same 716-byte frame as Rogue Leader),
-  and in `config/GWRE64/`: the OS context functions, `OSReport`, `PPCHalt` and the scheduler's
-  idle loop, found by their instruction patterns.
-- **MusyX** is linked into the VM code here (Rogue Leader has it in `main.dol`): the
-  DSP-overload fix hooks `salBuildCommandList` at `0x7F664124`, and the audio timing watches
-  MusyX's AI buffer and busy flags, which Rebel Strike keeps in a different order.
-- **Expected work:** split-screen co-op and versus modes (Rogue Leader only ever draws one view),
-  on-foot and ground-vehicle missions, the bundled arcade games, and every Rogue Leader-specific
-  fix in `src/runtime/hle_game_gswe64.cpp` that Rebel Strike turns out to need.
-
-### Reporting a Rebel Strike problem
-
-The session log (Linux: `~/.local/share/Red Three/logs`, Windows: `user\logs` next to
-`red_three.exe`) from the start that went wrong is what tells us where it stopped.
-
----
-
-# Red Two
-
-[![release](https://img.shields.io/github/v/release/gminustwo/red_two?filter=v%2A&sort=semver&display_name=tag&label=release&color=orange)](https://github.com/gminustwo/red_two/releases/latest)
-[![downloads](https://img.shields.io/github/downloads/gminustwo/red_two/total?label=downloads&color=brightgreen)](https://github.com/gminustwo/red_two/releases)
-
-A static recompilation of **Star Wars: Rogue Squadron II – Rogue Leader** (GameCube) for PC.
-
-The game's own PowerPC code is translated to C++ ahead of time and runs on a native runtime
-that stands in for the console's hardware. **No game data is included**: you need your own disc
-image of the USA release (`GSWE64`, revision 0), for the downloads as for your own build.
-
-**Downloads**: Windows (zip) and Linux / Steam Deck (AppImage) builds are on the
-[Releases](../../releases) page. They contain the game's code in recompiled form, none of its data:
-start it and choose your disc image (`.iso`, `.gcm`, `.rvz` or `.wia`, wherever it is) on the
-launcher's disc page: type or paste its path, pick it in the file dialog, or find it in the
-built-in browser (controller-friendly). Red Two remembers it; one next to the program is also
-found by itself.
-Or build Red Two yourself (below): the build recompiles the game from your disc. The Windows zip
-is portable (everything of yours stays in its `user` folder) and brings the Visual C++ runtime
-with it; it needs a CPU with AVX2 (Intel Haswell / AMD Ryzen or newer) and says so otherwise.
-
-> Status: playable on Windows and Linux (also packaged as an AppImage for the Steam Deck):
-> menus, cutscenes and missions at full speed with graphics (Aurora), sound (an emulation of the
-> MusyX audio DSP), controls, saving, save states, widescreen, mods, cheats and RetroAchievements.
-
-## Building (Windows)
-
-Requirements: Visual Studio 2022 Build Tools (C++), CMake 3.25+, Ninja, clang-cl (LLVM).
-
-```powershell
-# 1. Build: recompiles the game straight from your disc image (RVZ, WIA, ISO or GCM)
-powershell -ExecutionPolicy Bypass -File tools\build.ps1 -Disc "<your Rogue Leader.rvz>"
-
-# 2. Run
-build\windows\red_two.exe --disc "<your Rogue Leader.rvz>"
-```
-
-Without `--disc` the game takes the disc chosen in the launcher before (F1 > DISPLAY > Game disc),
-else looks for `orig\GSWE64.iso`, `orig\GSWE64.rvz`, `GSWE64.rvz`, `GSWE64.iso` and any GSWE64
-image next to the program or in the user folder, else the launcher asks for it.
-`tools\rvz.py` (Python + libzstd) can still extract a disc or convert it to ISO.
-
-The code generated from your disc ends up in `build/` and is yours alone: never share it.
-
-`tools\make_release_win.ps1` packs a build into `build\RedTwo-windows-x64.zip` (the program, its
-symbols, DLLs, a readme) for your own use on another PC.
-
-## Building (Linux) and the Steam Deck AppImage
-
-Requirements: clang, lld, CMake 3.25+, Ninja, git, and SDL3's build dependencies (X11, Wayland,
-xkbcommon, ALSA / PulseAudio / PipeWire, udev and D-Bus development packages). Ubuntu 24.04 (also
-under WSL2) works; the result needs glibc 2.38 or later (SteamOS 3.6+).
+**Linux** (clang, lld, CMake 3.25+, Ninja, SDL3's build dependencies):
 
 ```bash
-tools/build_linux.sh --disc "<your Rogue Leader.rvz>"     # -> build/linux/red_two
-# an AppImage: the AppImage type 2 runtime (github.com/AppImage/type2-runtime, runtime-x86_64),
-# mksquashfs and patchelf
-tools/make_appimage.sh --runtime runtime-x86_64 --icon <256x256 png>   # -> build/linux/RedTwo-x86_64.AppImage
+tools/build_linux.sh --disc "<your Rebel Strike.iso>" -DR2_GAME=GWRE64 --build-dir build/linux-rs
+build/linux-rs/red_three
 ```
 
-On the Steam Deck: copy the AppImage and your disc image (`.rvz` / `.iso`, any name) into the
-same folder (or the disc into `~/Emulation/roms/gc`), make the AppImage executable, and add it
-to Steam as a non-Steam game. The first start on a Deck is fullscreen with the picture as wide
-as the screen. Settings, saves, states and logs live in `~/.local/share/Red Two/`.
+The first build downloads the graphics library's dependencies and recompiles the game, so it
+takes a while.
 
-### Playing
+Building without `-DR2_GAME` (or with `-DR2_GAME=GSWE64`) still gives you Red Two for Rogue
+Leader, unchanged.
 
-- **Launcher**: Red Two opens on its settings (the same pages as the in-game menu) before the
-  game starts. Start game (the first row) or the controller's START launches it. Turn off
-  "Show launcher at start" there to go straight into the game from then on; the in-game menu
-  (F1 or Back) has the same switch and "Back to launcher". `--launcher` / `--no-launcher` override
-  the setting for one start. A reset from the menu goes straight back into the game.
-- Gamepads work through SDL (with rumble), also while the window is in the background. On an
-  Xbox-style pad the face buttons follow the GameCube positions: A = A (fire), X (left) = B,
-  B (right) = X, Y = Y; LT/RT = L/R, RB = Z, right stick = C-stick, Menu = Start. Keyboard: WASD or arrows steer, Space = A (fire),
-  Left Shift = B, E = X, Q = Y, R = Z, 1/2 = L/R, Enter = Start, IJKL = C-stick, TFGH = D-pad.
-- The game's button prompts show your controller's buttons (the one each GameCube button is
-  bound to, e.g. "PRESS (Y)" and SELECT CRAFT's "(B) > pilot"): the PlayStation symbols on a
-  PS3 / PS4 / PS5 controller, the Xbox buttons on any other. F1 > Controls > Button prompts
-  picks Automatic, Xbox, PlayStation or the original GameCube ones. The C-stick icon stays.
-- **Control stick** (F1 > Controls): stick sensitivity (25-200%) and a round deadzone (0-50%,
-  both sticks; the output grows from zero at its edge, so small aiming moves are smooth), with a
-  meter showing the stick and what the game gets.
-- F11 or Alt+Enter toggles fullscreen; `--fullscreen` starts that way.
-- **Graphics** (F1, DISPLAY): internal resolution up to 4K, 4x MSAA anti-aliasing (from the next
-  start; WebGPU offers no other sample count) and anisotropic filtering up to 16x.
-- **Where your files are**: on Windows a `user` folder next to `red_two.exe` (the zip has one)
-  holds settings, the memory card, save states, logs, texture packs, codes and the shader cache,
-  so the folder can live anywhere (another drive, a NAS). An install that has no `user` folder
-  but an older `%APPDATA%\Red Two` keeps using that one; create `user` to make it portable (its
-  first start copies the settings, controls and memory card over). Linux: `~/.local/share/Red Two/`.
-- **Cheats** (F1 > Cheats): invincibility, infinite lives, infinite bombs, perfect mission
-  stats (the results screen says 0:01, every enemy destroyed, 100% accuracy, no friendlies or
-  lives lost and 100% targeting computer efficiency, and the medal is awarded for those), and
-  all craft (every craft a mission allows waits in its hangar). **Passcodes**: the game's own
-  unlocks without typing codes - all missions, all tech upgrades, ace mode, art gallery, music
-  hall, documentary, audio commentary, credits, black and white - kept in the game's save as
-  if the codes had been entered.
-- **RetroAchievements** (F1 > Achievements): log in with your retroachievements.org account
-  (only the login token is stored) or take Dolphin's login; softcore only, so save states and
-  cheats stay usable. Unlocks pop up in the top right corner.
-- **Reset game**, **Back to launcher** and **Quit to desktop** are at the top of the menu's first page.
-- **Save states**: Back + RB saves, Back + LB loads, Back + D-pad right / left picks the slot
-  (8 slots; keyboard F5 / F8, F7 / F6). F1 > Controls has the slot, save / load buttons and the
-  hotkeys, each any combination of buttons (or keys) held together: pick the row, press A, hold
-  the buttons, let go. On a controller Back alone (released with nothing else pressed) still
-  opens the menu. States live in the user folder's `states` and also load after a restart, but
-  only into the same build of Red Two (a rebuild makes them "OLD"). The memory card is not part
-  of a state: loading one does not undo the game's own saves.
-- Saves go to the user folder's `saves/GSWE64_A.raw` (slot A; the game formats a new card). A
-  `.raw` card from Dolphin or Nintendont can be copied there as it is, whatever its size (59 to
-  2043 blocks). `R2_CARD_A=<path>` uses another card image.
-- **Mods** (F1, MODS tab): texture packs in Dolphin's format go in the user folder's
-  `textures\` (a `GSWE64` folder inside, exactly as in Dolphin's
-  `Load\Textures`; `.dds` and `.png`, mip files and wildcards work), or stay wherever you unpacked
-  them: MODS -> Texture pack folder opens a folder browser (d-pad / stick, A opens, X goes up, B
-  back) - pick the pack's folder (the one holding `GSWE64`, or `GSWE64` itself), e.g. in Downloads
-  or on an SD card. Back + D-pad up (F9) turns the texture packs off and on again at once, to
-  compare (rebindable in Controls). Gecko / Action Replay codes and
-  patches go in the user folder's `codes.ini` (Dolphin's GameSettings format) and can be switched
-  in the menu. The game is recompiled ahead of time, so codes that change its code (Gecko C2
-  "insert ASM", writes into code) cannot work; the menu marks them as not supported.
-- **Importing from Dolphin**: MODS -> IMPORT FROM DOLPHIN, or
-  `red_two.exe --import-dolphin[=saves,textures,codes] --console`. Red Two finds Dolphin's user
-  folder (AppData, Documents, a portable install, the registry, a custom Load folder in
-  `Dolphin.ini`) and brings over this game's newest save (from GCI folders or `.raw` cards; the
-  previous card is kept in `saves\backup`, and the game restarts), its texture packs (copied) and
-  its codes (with their on/off states). `R2_DOLPHIN_DIR=<User folder>` points it elsewhere.
-- **Shaders** (F1, DISPLAY -> PERFORMANCE): "Prepare shaders at start" (on) compiles every shader
-  the game has used on this device before it starts; off, the game starts at once and objects may
-  pop in while their shaders compile. "Ubershaders" (on; off on a Steam Deck's first start) draws
-  not-yet-compiled objects with a generic shader instead of skipping them.
-- `R2_NO_AUDIO=1` runs without sound. Every session writes a log to the user folder's `logs`
-  (Linux: `~/.local/share/Red Two/logs`); `--console` shows it in a console window on Windows.
+Red Three keeps its settings, memory card (`GWRE64_A.raw`), save states and logs in a user
+folder named "Red Three", separate from Red Two's: `user` next to `red_three.exe` on Windows,
+`~/.local/share/Red Three` on Linux. It has no releases, so it never checks for updates.
 
 ## Reporting a problem
 
-Open an issue on the [Issues](../../issues/new/choose) page and pick **Bug report** (or **Feature
-request** for an idea): the form asks for what helps. Please check the open issues first, and
-report one problem per issue. What to have at hand:
+Open an issue with:
 
-- **Red Two's version**: under the menu's title (F1, or the controller's Back / Select), e.g.
-  "VERSION 1.2". Newer versions may already fix it: the menu offers updates at the top of its
-  first page.
-- **What happened and where**: the mission (or menu, cutscene) and the moment, whether it happens
-  every time, and how to get there.
-- **The session log (required)**: a bug report needs the log of the play session where the
-  problem happened. Every start of Red Two writes a new one, named by the date and time it
-  started, so if you started Red Two again afterwards, the newest log is from that later start:
-  pick the right one by its date and time, and drag it into the issue. It's in:
-  - Windows: `user\logs` next to `red_two.exe` (an older install without a `user` folder:
-    `%APPDATA%\Red Two\logs`)
-  - Steam Deck / Linux: `~/.local/share/Red Two/logs`
+- the **session log** from the start that went wrong (the `logs` folder in the user folder
+  above; each start writes a new one, named by date and time)
+- what happened and where (boot, menus, which mission), and whether it happens every time
+- a screenshot or short video if it's something you can see
 
-  It lists your settings, the frame rate every 30 seconds, and what the game was doing in a
-  freeze or a crash. It also shows folder paths, which can include your user name: edit those
-  out if you like.
-- **Your setup**: the controller (and whether Steam starts Red Two), your display and aspect
-  ratio, a texture pack if you use one.
-- **A screenshot or a short video** for anything you can see.
+## What Red Three changes
 
-A save state from just before the problem can help too, but states only load into the build that
-made them: mention that you have one, and we'll ask for it if needed.
+Compared with Red Two at `354ae8b`:
 
-## How it works
-
-`tools/rvz.py` and `src/common/disc_image.cpp` read the disc; the recompiler (`src/recompiler`)
-finds the game's functions in `main.dol` without symbols and writes them out as C++ - including the
-second executable the game hides inside `main.dol` and runs from its own demand-paged virtual
-memory. The runtime (`src/runtime`) stands in for the console: the CPU state and MMU, threads on
-host fibers, the GameCube's hardware at the register level (video, disc, audio DSP, ARAM, memory
-card, controllers), and a bridge that hands the GPU command stream to
-[Aurora](https://github.com/encounter/aurora) for rendering. Names we gave the game's functions are
-in `config/GSWE64/symbols.txt`.
+- **The game is a build option.** `R2_GAME` picks `config/<disc ID>/` (function names, hooks,
+  layout), the game's own hooks (`src/runtime/hle_game_<id>.cpp`) and a profile in
+  `src/runtime/game.h`: names, disc ID, and the handful of addresses the runtime itself relies
+  on. Everything that was hardcoded to Rogue Leader (disc checks, user folder, memory card,
+  save states, texture packs, Dolphin import, menu texts) follows the profile.
+- **Compressed main program.** Rebel Strike stores the code it runs from virtual memory
+  zlib-compressed inside `main.dol`. A new `embedded_zlib` layout entry has the recompiler
+  unpack it (text at `0x7F200000`).
+- **Hooks by name.** The generated `funcs.h` defines `R2_HOOK_<name>` and `orig_<name>()`, so
+  runtime code shared by both games can call a hook's original body without a game-specific
+  address.
+- **Rebel Strike's addresses** in `config/GWRE64/` and `game.h`, found by analysis of the
+  game's code:
+  - the VM pager the page-fault entry calls (`0x800A1C28`, entry `0x8003D190`)
+  - `OSSaveContext`, `OSLoadContext`, `OSInitContext`, `OSReport`, `PPCHalt` and the
+    scheduler's idle loop
+  - MusyX's `salBuildCommandList` (`0x7F664124`) and its AI interrupt state, which Rebel
+    Strike lays out differently from Rogue Leader
+- **Rogue Leader-only options hidden** for other games. Rogue Leader's hooks are in
+  `src/runtime/hle_game_gswe64.cpp`, unchanged apart from the file name.
 
 ## Legal
 
-Red Two is released under the [MIT License](LICENSE). It covers this repository's own code
-only, not the game's code that a build (and the prebuilt downloads) contain in recompiled form.
+Red Three is distributed under the [MIT License](LICENSE) it inherits from Red Two, which
+covers this repository's code only, not the game's code that a build contains in recompiled
+form.
 
-This repository contains no code or assets from the game. Star Wars and Rogue Leader are
-trademarks of Lucasfilm Ltd.; GameCube is a trademark of Nintendo. This project is not
-affiliated with or endorsed by them.
+This repository contains no code or assets from the game. Star Wars, Rogue Leader and Rebel
+Strike are trademarks of Lucasfilm Ltd.; GameCube is a trademark of Nintendo. This project is
+not affiliated with or endorsed by them, or by Red Two's authors.
