@@ -17,6 +17,7 @@
 #include "../mods.h"
 #include "../achievements.h"
 #include "../runtime.h"
+#include "../game.h"
 #include "../settings.h"
 #include "gx_fifo.h"
 #include "musyx_dsp.h"
@@ -632,16 +633,18 @@ std::string cardImagePath(int slot) {
 #ifndef _WIN32
     // Linux (an AppImage starts in any folder): saves/ of the working folder if it has the card,
     // else the user data folder's (~/.local/share/Red Two/saves/)
-    if (FILE* f = fopen("saves/GSWE64_A.raw", "rb")) {
+    const std::string card = std::string(game::kGame.id) + "_A.raw";
+    if (FILE* f = fopen(("saves/" + card).c_str(), "rb")) {
         fclose(f);
-        return "saves/GSWE64_A.raw";
+        return "saves/" + card;
     }
-    if (const std::string u = mods::userDir(); !u.empty()) return u + "saves/GSWE64_A.raw";
+    if (const std::string u = mods::userDir(); !u.empty()) return u + "saves/" + card;
 #else
     // Windows: the portable user folder's (else saves\ of the working folder, as before)
-    if (mods::portable()) return mods::userDir() + "saves\\GSWE64_A.raw";
+    const std::string card = std::string(game::kGame.id) + "_A.raw";
+    if (mods::portable()) return mods::userDir() + "saves\\" + card;
 #endif
-    return "saves/GSWE64_A.raw";
+    return "saves/" + card;
 }
 
 bool cardCurrentImage(int slot, std::vector<u8>& out) {
@@ -1018,15 +1021,17 @@ u64 s_aiDue = 0;           // when the AI DMA block playing now ends
 // and running the synth for the next frame, interrupts enabled). An AI interrupt taken while
 // either is set loses that frame's mix.
 // salAIBufferBase r13-18380 (four 0x280-byte blocks) precedes them.
-constexpr u32 kSalAIBufferBase = 0x000965D4;  // salLogicIsWaiting +8, salLogicActive +12
+constexpr u32 kSalAIBufferBase = game::kGame.salAIBufferBase & 0x01FFFFFFu;  // salLogicIsWaiting +8, salLogicActive +12; 0: not known
 u32 rdPhys32(const u8* p) { return (u32(p[0]) << 24) | (u32(p[1]) << 16) | (u32(p[2]) << 8) | p[3]; }
 // the DMA plays MusyX's buffers (else nothing waits: boot, other AI users)
 bool musyxPlaying() {
+    if (!kSalAIBufferBase) return false;
     const u8* p = physPtr(kSalAIBufferBase, 4);
     const u32 base = p ? rdPhys32(p) & 0x03FFFFE0 : 0;
     return base && s_aiDma.addr >= base && s_aiDma.addr < base + 4 * 0x280;
 }
 bool musyxFrameBusy() {
+    if (!kSalAIBufferBase) return false;
     const u8* p = physPtr(kSalAIBufferBase + 8, 8);
     return p && (rdPhys32(p) == 1 || rdPhys32(p + 4) == 1);
 }

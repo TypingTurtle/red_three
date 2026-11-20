@@ -38,6 +38,7 @@
 #include "http.h"
 #include "mods.h"
 #include "settings.h"
+#include "game.h"
 
 #ifdef _WIN32
 #include <windows.h>
@@ -56,7 +57,9 @@ namespace fs = std::filesystem;
 namespace rt::update {
 namespace {
 
-constexpr const char* kApi = "https://api.github.com/repos/gminustwo/red_two/releases/latest";
+// the releases of the port this build is (game.h; none: no update checks)
+const std::string kRepo = game::kGame.updateRepo ? game::kGame.updateRepo : "";
+const std::string kApi = "https://api.github.com/repos/" + kRepo + "/releases/latest";
 
 std::mutex s_mutex;
 Status s_status;
@@ -473,7 +476,7 @@ void checkWorker() {
         s_sumsUrl = sumsUrl;
         s_assetSize = assetSize;
         s_status.latest = latest;
-        s_status.pageUrl = j.value("html_url", std::string("https://github.com/gminustwo/red_two/releases/latest"));
+        s_status.pageUrl = j.value("html_url", "https://github.com/" + kRepo + "/releases/latest");
         s_status.asset = asset;
         s_status.canInstall = can;
         if (s_status.phase == Phase::Checking) s_status.phase = isNewer ? Phase::Available : Phase::Current;
@@ -629,7 +632,7 @@ void init() {
             s.phase = Phase::Updated;
             s.from = from;
             s.latest = version();
-            s.pageUrl = std::string("https://github.com/gminustwo/red_two/releases/tag/v") + version();
+            s.pageUrl = "https://github.com/" + kRepo + "/releases/tag/v" + version();
         });
     }
     const bool automated = envFlag("R2_BACKGROUND") || envFlag("R2_HEADLESS") || getenv("R2_INPUT");
@@ -638,6 +641,7 @@ void init() {
 }
 
 void check() {
+    if (kRepo.empty()) return;  // a port without releases to follow
     if (s_busy.exchange(true)) return;
     set([](Status& s) {
         if (s.phase != Phase::Updated) s.phase = Phase::Checking;

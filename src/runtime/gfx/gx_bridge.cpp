@@ -51,6 +51,7 @@ extern "C" __declspec(dllimport) int __stdcall GetSystemMetrics(int);
 extern "C" __declspec(dllimport) int __stdcall ShowWindow(void*, int);
 #endif
 #include "../achievements.h"
+#include "../game.h"
 #include "../hw/gx_fifo.h"
 #include "../hw/musyx_dsp.h"
 #include "../hotkeys.h"
@@ -1773,7 +1774,7 @@ void logCallback(AuroraLogLevel level, const char* module, const char* message, 
 
 bool init(int argc, char** argv, std::string& disc, const std::string& discNote) {
     AuroraConfig cfg{};
-    cfg.appName = "Red Two";
+    cfg.appName = game::kGame.app;
     // Pipeline cache and other Aurora files: %APPDATA%\Red Two for the player. Automated runs
     // (R2_BACKGROUND, R2_HEADLESS or R2_INPUT) keep their own in build/test_cache, so debugging
     // overrides never leave pipelines in the player's cache (Aurora warms the whole cache at

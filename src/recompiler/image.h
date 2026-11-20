@@ -8,6 +8,8 @@
 
 #include "../common/disc_image.h"
 
+#include <zlib.h>
+
 struct Section {
     std::string name;
     uint32_t addr = 0, size = 0, fileOff = 0;
@@ -67,10 +69,29 @@ struct Image {
     // the DOL's sections and maps it to virtual addresses (0x7FC00000+) with its own MMU
     // page tables. Add that image's sections at their virtual addresses; the container
     // section stops being code.
-    bool addEmbedded(uint32_t at) {
+    //
+    // Rebel Strike stores its image zlib-compressed: <compressed size> <unpacked size> (both
+    // big-endian u32) and the zlib stream. Unpacked, it is appended to `file` and read from there.
+    bool addEmbedded(uint32_t at, bool compressed = false) {
         const Section* c = find(at);
         if (!c) return false;
-        const uint32_t base = c->fileOff + (at - c->addr);
+        uint32_t base = c->fileOff + (at - c->addr);
+        size_t limit = size_t(c->fileOff) + c->size;  // the image's bytes end here
+        if (compressed) {
+            if (base + 8 > limit) return false;
+            auto rd = [&](size_t o) {
+                return uint32_t(file[o]) << 24 | uint32_t(file[o + 1]) << 16 | uint32_t(file[o + 2]) << 8 | file[o + 3];
+            };
+            const uint32_t packed = rd(base), unpacked = rd(base + 4);
+            if (packed > limit - base - 8 || unpacked < 0x100 || unpacked > 0x02000000u) return false;
+            std::vector<uint8_t> out(unpacked);
+            uLongf outLen = unpacked;
+            if (uncompress(out.data(), &outLen, &file[base + 8], packed) != Z_OK || outLen != unpacked) return false;
+            while (file.size() % 32) file.push_back(0);
+            base = uint32_t(file.size());
+            file.insert(file.end(), out.begin(), out.end());
+            limit = file.size();
+        }
         auto be = [&](size_t o) {
             o += base;
             return uint32_t(file[o]) << 24 | uint32_t(file[o + 1]) << 16 | uint32_t(file[o + 2]) << 8 | file[o + 3];
@@ -84,7 +105,7 @@ struct Image {
             s.text = i < 7;
             s.name = std::string("V") + (i < 7 ? "T" : "D") + std::to_string(i < 7 ? i : i - 7);
             if (!s.size) continue;
-            if (s.fileOff + s.size > c->fileOff + c->size) return false;
+            if (size_t(s.fileOff) + s.size > limit) return false;
             add.push_back(s);
         }
         for (auto& s : sections)

@@ -11,6 +11,7 @@
 
 #include "mods.h"
 #include "runtime.h"
+#include "game.h"
 
 namespace rt::settings {
 namespace {
@@ -224,7 +225,7 @@ void save() {
         return;
     }
     fprintf(f, "# Red Two settings (also editable in game: F1 or the controller's Back/Select button)\n");
-    fprintf(f, "# your Rogue Leader disc image (chosen in the launcher); empty: one next to Red Two, else it asks\n");
+    fprintf(f, "# your %s disc image (chosen in the launcher); empty: one next to %s, else it asks\n", game::kGame.title, game::kGame.app);
     fprintf(f, "disc_path=%s\n", s.discPath.c_str());
     fprintf(f, "# the launcher (these settings before the game starts); 0: straight into the game\n");
     fprintf(f, "launcher=%d\n", s.launcher);
@@ -268,7 +269,7 @@ void save() {
     fprintf(f, "custom_textures=%d\n", s.customTextures);
     fprintf(f, "# texture packs loaded into memory before the game starts (up to half the RAM)\n");
     fprintf(f, "prefetch_textures=%d\n", s.prefetchTextures);
-    fprintf(f, "# another folder whose texture packs load too (the folder holding GSWE64, or GSWE64 itself); empty: none\n");
+    fprintf(f, "# another folder whose texture packs load too (the folder holding %s, or %s itself); empty: none\n", game::kGame.id, game::kGame.id);
     fprintf(f, "textures_folder=%s\n", s.texturesFolder.c_str());
     fprintf(f, "# on-screen button prompts: auto (PlayStation symbols for a PlayStation controller, else Xbox), xbox, playstation, gamecube\n");
     fprintf(f, "button_prompts=%s\n", buttonPromptsName(s.buttonPrompts));

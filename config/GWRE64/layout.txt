@@ -1,0 +1,6 @@
+# Executable layout of GWRE64 (Star Wars: Rebel Strike, USA).
+# embedded_zlib <addr>: a DOL-format image stored zlib-compressed at <addr> (inside a DOL
+#                       section): <compressed size> <unpacked size> (big-endian u32), then the
+#                       zlib stream. The loader ("GSYS VM init") unpacks it to virtual memory
+#                       (text at 0x7F200000) and pages it from ARAM like Rogue Leader's.
+embedded_zlib 80200000

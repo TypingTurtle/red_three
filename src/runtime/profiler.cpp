@@ -23,8 +23,13 @@
 
 #include "hw/musyx_dsp.h"
 #include "runtime.h"
+#include "game.h"
 
 namespace rt {
+// the game's "level" byte for stall reports (game.h; 0 when not known)
+static unsigned stallLevel() {
+    return game::kGame.stallLevelAddr ? unsigned(peekGuest32(game::kGame.stallLevelAddr) >> 24) : 0u;
+}
 
 namespace {
 
@@ -221,7 +226,7 @@ void stallReport(const std::vector<StallSample>& samples, double ms, bool ongoin
     std::vector<std::pair<std::string, u32>> v(byChain.begin(), byChain.end());
     std::sort(v.begin(), v.end(), [](auto& a, auto& b) { return a.second > b.second; });
     logf("stall", "%s %.0f ms without a new frame (level %u); the game thread in %zu samples:",
-         ongoing ? "still waiting:" : "frames again after", ms, unsigned(peekGuest32(0x800962EC) >> 24), samples.size());
+         ongoing ? "still waiting:" : "frames again after", ms, stallLevel(), samples.size());
     for (size_t i = 0; i < v.size() && i < 4; i++)
         logf("stall", "  %3.0f%%  %s", 100.0 * v[i].second / double(samples.size()), v[i].first.c_str());
 }
@@ -269,13 +274,13 @@ void stallWatchdog() {
             const u64 now = tbNow();
             if (now - reported >= kInterim && s_lastPresent.load(std::memory_order_relaxed) == last) {
                 logf("stall", "still waiting: %.0f ms without a new frame (level %u)", double(now - last) * 1000.0 / double(kTbClock),
-                     unsigned(peekGuest32(0x800962EC) >> 24));
+                     stallLevel());
                 reported = now;
             }
         }
         const u64 next = s_lastPresent.load(std::memory_order_relaxed);
         logf("stall", "frames again after %.0f ms without a new frame (level %u)", double(next - last) * 1000.0 / double(kTbClock),
-             unsigned(peekGuest32(0x800962EC) >> 24));
+             stallLevel());
     }
 }
 #endif
@@ -322,7 +327,7 @@ void diagFramePresented(u32 draws, u64 presentTb) {
          secs, double(w.frames) / secs, viRate(), (unsigned long long)w.slow, 1500.0 / viRate(),
          double(w.longest) * 1000.0 / double(kTbClock), (unsigned long long)(w.draws / std::max<u64>(w.frames, 1)),
          std::clamp(busy, 0.0, 100.0), double(w.present) * 1000.0 / double(kTbClock) / double(std::max<u64>(w.frames, 1)),
-         unsigned(peekGuest32(0x800962EC) >> 24), audio::perfText().c_str());
+         stallLevel(), audio::perfText().c_str());
     w = PerfWindow{};
     w.start = w.last = now;
     w.idleAtStart = g_idleTb;

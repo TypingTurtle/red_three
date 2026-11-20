@@ -651,6 +651,11 @@ bool Emitter::write(const std::string& outDir, int files) {
             if (cfg_.hooks.count(f->entry)) h += "void " + fn(f->entry) + "_orig(Ctx& c);\n";
         }
         for (auto& [a, n] : cfg_.hooks) h += "void hle_" + n + "(Ctx& c);\n";
+        // by hook name, for runtime code shared between games: R2_HOOK_<name> says the game has
+        // the hook, orig_<name>() runs the game's own body
+        for (auto& [a, n] : cfg_.hooks)
+            if (an_.funcs.count(a))
+                h += "#define R2_HOOK_" + n + " 1\ninline void orig_" + n + "(Ctx& c) { " + fn(a) + "_orig(c); }\n";
         h += "}  // namespace rt\n";
         if (!writeFile(outDir + "/funcs.h", h)) return false;
     }

@@ -25,16 +25,27 @@ set(AURORA_ENABLE_TESTS OFF CACHE BOOL "" FORCE)
 set(AURORA_ENABLE_EXAMPLES OFF CACHE BOOL "" FORCE)
 add_subdirectory(extern/aurora EXCLUDE_FROM_ALL)
 
+# The game this build is for, by disc ID: GSWE64 (Star Wars: Rogue Leader, USA) or GWRE64 (Star
+# Wars: Rebel Strike, USA). Picks config/<ID>/, the game's hooks (src/runtime/hle_game_<id>.cpp)
+# and the names and addresses in src/runtime/game.h.
+set(R2_GAME "GSWE64" CACHE STRING "disc ID of the game to build: GSWE64 (Rogue Leader) or GWRE64 (Rebel Strike)")
+set_property(CACHE R2_GAME PROPERTY STRINGS GSWE64 GWRE64)
+if(NOT EXISTS "${CMAKE_SOURCE_DIR}/config/${R2_GAME}")
+    message(FATAL_ERROR "R2_GAME=${R2_GAME}: no config/${R2_GAME}")
+endif()
+string(TOLOWER "${R2_GAME}" _r2_game_lc)
+set(R2_GAME_DEFS "R2_GAME_ID=\"${R2_GAME}\"" "R2_GAME_${R2_GAME}=1")
+
 # The game's own main.dol, or the user's disc image (ISO/GCM/RVZ/WIA) it is read from; never
 # committed. Defaults to the first that exists of the usual places.
-set(_r2_dol_default "${CMAKE_SOURCE_DIR}/orig/GSWE64/sys/main.dol")
-foreach(_c orig/GSWE64/sys/main.dol orig/GSWE64.iso orig/GSWE64.rvz)
+set(_r2_dol_default "${CMAKE_SOURCE_DIR}/orig/${R2_GAME}/sys/main.dol")
+foreach(_c orig/${R2_GAME}/sys/main.dol orig/${R2_GAME}.iso orig/${R2_GAME}.rvz)
     if(EXISTS "${CMAKE_SOURCE_DIR}/${_c}")
         set(_r2_dol_default "${CMAKE_SOURCE_DIR}/${_c}")
         break()
     endif()
 endforeach()
-set(R2_DOL "${_r2_dol_default}" CACHE FILEPATH "main.dol or disc image of Star Wars: Rogue Leader (GSWE64)")
+set(R2_DOL "${_r2_dol_default}" CACHE FILEPATH "main.dol or disc image of the game (R2_GAME)")
 set(R2_GEN_FILES 96 CACHE STRING "number of generated code files")
 # Generated files are large: cap how many compile at once (memory).
 set(R2_GEN_JOBS 12 CACHE STRING "parallel compiles of generated code")
@@ -56,7 +67,7 @@ add_executable(r2recomp
     src/recompiler/ppc.cpp
     src/common/disc_image.cpp)
 target_compile_definitions(r2recomp PRIVATE ${R2_DEFS})
-target_link_libraries(r2recomp PRIVATE zstd::libzstd)
+target_link_libraries(r2recomp PRIVATE zstd::libzstd ZLIB::ZLIB)
 
 # disc_compare <a> <b>: check the disc image reader (not built by default)
 add_executable(disc_compare EXCLUDE_FROM_ALL src/common/disc_compare.cpp src/common/disc_image.cpp)
@@ -77,7 +88,7 @@ foreach(i RANGE ${_last})
     endif()
     list(APPEND GEN_SOURCES "${GEN_DIR}/code_${_n}.cpp")
 endforeach()
-file(GLOB R2_CONFIG "${CMAKE_SOURCE_DIR}/config/GSWE64/*.txt")
+file(GLOB R2_CONFIG "${CMAKE_SOURCE_DIR}/config/${R2_GAME}/*.txt")
 if(R2_HOST_RECOMP)
     set(_r2_recomp "${R2_HOST_RECOMP}")
     set(_r2_recomp_dep "${R2_HOST_RECOMP}")
@@ -89,14 +100,14 @@ else()
 endif()
 add_custom_command(
     OUTPUT ${GEN_SOURCES} "${GEN_DIR}/funcs.h"
-    COMMAND ${_r2_recomp} "${R2_DOL}" "${CMAKE_SOURCE_DIR}/config/GSWE64" "${GEN_DIR}" --files ${R2_GEN_FILES}
+    COMMAND ${_r2_recomp} "${R2_DOL}" "${CMAKE_SOURCE_DIR}/config/${R2_GAME}" "${GEN_DIR}" --files ${R2_GEN_FILES}
     DEPENDS ${_r2_recomp_dep} "${R2_DOL}" ${R2_CONFIG}
     COMMENT "Recompiling main.dol"
     VERBATIM)
 
 add_library(r2game STATIC ${GEN_SOURCES})
 set_target_properties(r2game PROPERTIES JOB_POOL_COMPILE r2gen)
-target_compile_definitions(r2game PRIVATE ${R2_DEFS})
+target_compile_definitions(r2game PRIVATE ${R2_DEFS} ${R2_GAME_DEFS})
 target_include_directories(r2game PUBLIC src/runtime "${GEN_DIR}")
 if(MSVC)
     # clang-cl: generated code is huge and full of labels
@@ -175,7 +186,7 @@ set(R2_RUNTIME_SOURCES
     src/runtime/input.cpp
     src/runtime/gyro.cpp
     src/runtime/settings.cpp
-    src/runtime/hle_game.cpp
+    src/runtime/hle_game_${_r2_game_lc}.cpp
     src/runtime/mods.cpp
     src/runtime/codes.cpp
     src/runtime/card_image.cpp
@@ -192,6 +203,9 @@ if(ANDROID)
     set_target_properties(red_two PROPERTIES OUTPUT_NAME main)  # libmain.so, what SDLActivity loads
 else()
     add_executable(red_two ${R2_RUNTIME_SOURCES})
+    if(R2_GAME STREQUAL "GWRE64")
+        set_target_properties(red_two PROPERTIES OUTPUT_NAME red_3)  # Red 3
+    endif()
 endif()
 target_include_directories(red_two PRIVATE src/runtime "${GEN_DIR}" extern/aurora/lib)
 # The version (VERSION: bumped for each release) and whether this is a release build (the
@@ -221,7 +235,7 @@ if(WIN32 AND R2_ICON)
         target_compile_definitions(red_two PRIVATE R2_HAS_ICON=1)
     endif()
 endif()
-target_compile_definitions(red_two PRIVATE ${R2_DEFS})
+target_compile_definitions(red_two PRIVATE ${R2_DEFS} ${R2_GAME_DEFS})
 target_compile_options(red_two PRIVATE ${_r2_arch} ${_r2_fp})
 target_link_libraries(red_two PRIVATE r2game aurora::core aurora::gx aurora::vi aurora::pad xxHash::xxhash zstd::libzstd
     rcheevos PNG::PNG nlohmann_json::nlohmann_json)

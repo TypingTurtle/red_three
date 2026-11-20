@@ -1,0 +1,13 @@
+# Function names for GWRE64 (Star Wars: Rebel Strike, USA rev 0), identified by analysis.
+# <address> <name>
+# Dolphin OS (main.dol text), found by their instruction patterns and laid out as in Rogue Leader
+80022f20 OSDisableInterrupts     # mfmsr; clear EE; mtmsr; return the old EE
+80022f34 OSEnableInterrupts
+800222c0 OSSaveContext           # stmw r13,0x34(r3); GQRs; returns 0, then 1 when the context is loaded
+80022340 OSLoadContext           # lmw r13,0x34(r3) ... rfi
+80022444 OSInitContext           # stw r4,0x198(r3) (SRR0); stw r5,4(r3) (stack)
+80022874 OSReport                # printf-like; saves f1-f8 when cr1[6] is set (varargs)
+8001fff0 PPCHalt                 # sync; nop; li r3,0; nop; b . (the end of every fatal path)
+# The loader's VM fault entry (DSI vector stub -> here): builds a 716-byte frame, calls the
+# pager kept at 0x800A1C28 as pager(2, frame) (game.h: pagerPtr), rfi
+8003d190 VMFaultEntry

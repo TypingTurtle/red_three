@@ -5,6 +5,7 @@
 // worker threads (a 64-pixel mip tail first, then the full texture). The bridge hands it each
 // texture's guest memory (gx_bridge.cpp, LOAD_TEXOBJ), so the hashes match Dolphin's.
 #include "mods.h"
+#include "game.h"
 
 #ifdef _WIN32
 #include <windows.h>
@@ -168,7 +169,7 @@ void migrate(const fs::path& user, const fs::path& appData, const fs::path& base
             fclose(f);
         }
         const fs::path packs = appData / "textures";
-        if (fs::is_directory(packs / "GSWE64", ec) || fs::is_directory(packs / "GSW", ec)) {
+        if (fs::is_directory(packs / game::kGame.id, ec) || fs::is_directory(packs / game::kGame.prefix, ec)) {
             const std::string key = "\ntextures_folder=";
             const size_t at = text.rfind(key), v = at + key.size();
             const bool unset = at == std::string::npos || v >= text.size() || text[v] == '\r' || text[v] == '\n';
@@ -186,12 +187,13 @@ void migrate(const fs::path& user, const fs::path& appData, const fs::path& base
     if (!fs::exists(user / "input.json", ec) && fs::exists(appData / "input.json", ec) &&
         fs::copy_file(appData / "input.json", user / "input.json", ec))
         note("controls");
-    if (!fs::exists(user / "saves" / "GSWE64_A.raw", ec))
+    const std::string cardName = std::string(game::kGame.id) + "_A.raw";
+    if (!fs::exists(user / "saves" / cardName, ec))
         for (const fs::path& dir : {base, fs::current_path(ec)}) {
-            const fs::path card = dir / "saves" / "GSWE64_A.raw";
+            const fs::path card = dir / "saves" / cardName;
             if (dir.empty() || !fs::exists(card, ec)) continue;
             fs::create_directories(user / "saves", ec);
-            if (fs::copy_file(card, user / "saves" / "GSWE64_A.raw", ec)) {
+            if (fs::copy_file(card, user / "saves" / cardName, ec)) {
                 note("memory card");
                 break;
             }
@@ -210,12 +212,12 @@ std::string portableDir() {
     const fs::path base = u8path(baseUtf8);
     const fs::path user = base / "user";
     fs::path appData;
-    if (const wchar_t* a = _wgetenv(L"APPDATA"); a && *a) appData = fs::path(a) / "Red Two";
+    if (const wchar_t* a = _wgetenv(L"APPDATA"); a && *a) appData = fs::path(a) / game::kGame.app;
     std::error_code ec;
     bool fresh = false;
     if (!fs::is_directory(user, ec)) {
         if (!appData.empty() && fs::is_directory(appData, ec)) {
-            s_userDirNote = "user folder: " + utf8(appData) + " (an existing install; a folder named user next to red_two.exe makes it portable)";
+            s_userDirNote = "user folder: " + utf8(appData) + " (an existing install; a folder named user next to " + game::kGame.exe + ".exe makes it portable)";
             return {};
         }
         if (!fs::create_directory(user, ec)) {
@@ -259,7 +261,7 @@ std::string userDir() {
             return d;
         }
 #endif
-        if (char* p = SDL_GetPrefPath(nullptr, "Red Two")) {
+        if (char* p = SDL_GetPrefPath(nullptr, game::kGame.app)) {
             d = p;
             SDL_free(p);
         }
@@ -288,15 +290,17 @@ std::vector<std::string> packFolders(const std::string& root) {
             if (ieq(o, s.c_str())) return;
         out.push_back(s);
     };
-    if (fs::is_directory(r / "GSWE64", ec)) add(r / "GSWE64");
-    else if (fs::is_directory(r / "GSW", ec)) add(r / "GSW");
+    if (fs::is_directory(r / game::kGame.id, ec)) add(r / game::kGame.id);
+    else if (fs::is_directory(r / game::kGame.prefix, ec)) add(r / game::kGame.prefix);
     // marker files: <root>/<pack>/.../GSWE64.txt (or GSW.txt, all.txt) claims <root>/<pack>
     for (fs::recursive_directory_iterator it(r, fs::directory_options::skip_permission_denied, ec), end; it != end;
          it.increment(ec)) {
         if (ec) break;
         if (!it->is_regular_file(ec)) continue;
         const std::string name = str(it->path().filename());
-        if (!ieq(name, "GSWE64.txt") && !ieq(name, "GSW.txt") && !ieq(name, "all.txt")) continue;
+        if (!ieq(name, (std::string(game::kGame.id) + ".txt").c_str()) && !ieq(name, (std::string(game::kGame.prefix) + ".txt").c_str()) &&
+            !ieq(name, "all.txt"))
+            continue;
         const fs::path rel = it->path().lexically_relative(r);
         if (std::distance(rel.begin(), rel.end()) < 2) continue;  // a marker in the root itself
         add(r / *rel.begin());
@@ -314,9 +318,9 @@ FolderKind textureFolderKind(const std::string& dir, std::string* packDir) {
         return kind;
     };
     const std::string name = str(p.filename());
-    if (ieq(name, "GSWE64") || ieq(name, "GSW")) return found(p, FolderKind::Pack);
-    if (fs::is_directory(p / "GSWE64", ec)) return found(p / "GSWE64", FolderKind::HoldsPack);
-    if (fs::is_directory(p / "GSW", ec)) return found(p / "GSW", FolderKind::HoldsPack);
+    if (ieq(name, game::kGame.id) || ieq(name, game::kGame.prefix)) return found(p, FolderKind::Pack);
+    if (fs::is_directory(p / game::kGame.id, ec)) return found(p / game::kGame.id, FolderKind::HoldsPack);
+    if (fs::is_directory(p / game::kGame.prefix, ec)) return found(p / game::kGame.prefix, FolderKind::HoldsPack);
     return found(p, FolderKind::Other);
 }
 

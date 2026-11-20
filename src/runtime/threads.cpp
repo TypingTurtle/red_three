@@ -25,6 +25,7 @@
 #include <vector>
 
 #include "runtime.h"
+#include "game.h"
 #include "savestate.h"
 #include "table.h"
 
@@ -116,7 +117,7 @@ u32 s_addrInitContextOrig = 0, s_addrSaveContext = 0;
 u32 symAddr(const char* name) {
     for (const SymName* s = g_symNames; s->name; s++)
         if (!strcmp(s->name, name)) return s->addr;
-    fatal("symbol %s missing from config/GSWE64/symbols.txt", name);
+    fatal("symbol %s missing from config/%s/symbols.txt", name, game::kGame.id);
 }
 
 IrqFrame* frameAlloc() {

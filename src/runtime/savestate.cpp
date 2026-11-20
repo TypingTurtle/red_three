@@ -24,6 +24,7 @@
 #include "mods.h"
 #include "savestate.h"
 #include "settings.h"
+#include "game.h"
 
 namespace rt::state {
 
@@ -131,7 +132,7 @@ void startWrite(int slot) {
     Header h{};
     memcpy(h.magic, "R2ST", 4);
     h.version = kVersion;
-    memcpy(h.game, "GSWE64", 6);
+    memcpy(h.game, game::kGame.id, 6);
     h.exeBase = lay.exeBase;
     h.exeHash = lay.exeHash;
     h.guestBase = lay.guestBase;
@@ -185,7 +186,7 @@ bool readState(int slot) {
     }
     fclose(f);
     const HostLayout lay = hostLayout();
-    if (!ok || h.version != kVersion || memcmp(h.game, "GSWE64", 6) != 0) {
+    if (!ok || h.version != kVersion || memcmp(h.game, game::kGame.id, 6) != 0) {
         snprintf(buf, sizeof buf, "STATE %d CANNOT BE READ", slot);
         s_error = buf;
         return false;
@@ -224,7 +225,7 @@ void finishWrites() { finishWrite(); }
 
 std::string slotPath(int slot) {
     char name[32];
-    snprintf(name, sizeof name, "/GSWE64_slot%d.r2s", slot);
+    snprintf(name, sizeof name, "/%s_slot%d.r2s", game::kGame.id, slot);
     return stateDir() + name;
 }
 

@@ -49,11 +49,16 @@ int checkCpu() {
     const bool test = GetEnvironmentVariableW(L"R2_CPU_CHECK_TEST", nullptr, 0) != 0;
     if (!missing[0] && !test) return 0;
     if (!missing[0]) wcscpy_s(missing, L"nothing (R2_CPU_CHECK_TEST)");
+#ifdef R2_GAME_GWRE64
+    const wchar_t* kApp = L"Red 3";
+#else
+    const wchar_t* kApp = L"Red Two";
+#endif
     wchar_t msg[512];
     swprintf_s(msg,
-               L"Red Two needs a processor with AVX2 (Intel Haswell / 4th generation Core, AMD Ryzen or "
+               L"%ls needs a processor with AVX2 (Intel Haswell / 4th generation Core, AMD Ryzen or "
                L"newer).\n\nThis processor lacks: %ls.",
-               missing);
+               kApp, missing);
     if (test) {
         char line[600];
         const int n = WideCharToMultiByte(CP_UTF8, 0, msg, -1, line, sizeof line - 2, nullptr, nullptr);
@@ -61,7 +66,7 @@ int checkCpu() {
         if (n > 0) WriteFile(GetStdHandle(STD_ERROR_HANDLE), line, DWORD(n - 1), &written, nullptr);
         ExitProcess(3);
     }
-    MessageBoxW(nullptr, msg, L"Red Two", MB_OK | MB_ICONERROR);
+    MessageBoxW(nullptr, msg, kApp, MB_OK | MB_ICONERROR);
     ExitProcess(1);
 }
 

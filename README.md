@@ -1,3 +1,55 @@
+# Red 3
+
+A fork of [Red Two](https://github.com/gminustwo/red_two) working toward the same kind of port
+for the sequel, **Star Wars: Rogue Squadron III – Rebel Strike** (GameCube, USA, `GWRE64`).
+Red Two's recompiler and runtime are shared; the game is picked at build time (`R2_GAME`), and
+a Rogue Leader build (`GSWE64`, the default) is unchanged.
+
+> **Status: early, not yet booted.** Rebel Strike's code recompiles completely (about 19,900
+> functions, no untranslated instructions) and compiles; the runtime has the essentials for it.
+> Whether it boots is the next thing to find out. None of Rogue Leader's game-side extras
+> (cheats, passcode unlocks, cutscene skip, widescreen culling fixes) exist for Rebel Strike yet:
+> its menu pages say so. No game data or code is in this repository: you need your own disc.
+
+### Building Red 3
+
+As for Red Two (below), with `-DR2_GAME=GWRE64` and your Rebel Strike disc image:
+
+```bash
+tools/build_linux.sh --disc "<your Rebel Strike.iso>" -DR2_GAME=GWRE64 --build-dir build/linux-rs   # -> build/linux-rs/red_3
+```
+```powershell
+powershell -ExecutionPolicy Bypass -File tools\build.ps1 -Disc "<your Rebel Strike.iso>" -BuildDir build\windows-rs -CMakeArgs "-DR2_GAME=GWRE64"
+# -> build\windows-rs\red_3.exe
+```
+
+Use a build folder of its own per game: each holds that game's recompiled code. Red 3 keeps
+its settings, saves (`GWRE64_A.raw`) and states in a user folder named "Red 3", apart from Red
+Two's. It has no releases to update from, so it never checks for updates.
+
+### What differs from Rogue Leader so far
+
+- **Compressed main program.** Rebel Strike stores the code it runs from virtual memory
+  zlib-compressed inside `main.dol` (Rogue Leader's is stored plain). `config/GWRE64/layout.txt`
+  says `embedded_zlib 80200000`, and the recompiler unpacks it (text at `0x7F200000`).
+- **Its own addresses** for what the runtime relies on (`src/runtime/game.h`): the VM pager the
+  page-fault entry calls (`0x800A1C28`, entry `0x8003D190`; same 716-byte frame as Rogue Leader),
+  and in `config/GWRE64/`: the OS context functions, `OSReport`, `PPCHalt` and the scheduler's
+  idle loop, found by their instruction patterns.
+- **Not yet found:** MusyX's `salBuildCommandList` (Rogue Leader's DSP-overload fix) and the
+  MusyX state the audio timing watches; Rebel Strike seems to carry MusyX in its VM code.
+  Without them, voices may drop when the PC is busy.
+- **Expected work:** split-screen co-op and versus modes (Rogue Leader only ever draws one view),
+  on-foot and ground-vehicle missions, the bundled arcade games, and every Rogue Leader-specific
+  fix in `src/runtime/hle_game_gswe64.cpp` that Rebel Strike turns out to need.
+
+### Reporting a Rebel Strike problem
+
+The session log (Linux: `~/.local/share/Red 3/logs`, Windows: `user\logs` next to
+`red_3.exe`) from the start that went wrong is what tells us where it stopped.
+
+---
+
 # Red Two
 
 [![release](https://img.shields.io/github/v/release/gminustwo/red_two?filter=v%2A&sort=semver&display_name=tag&label=release&color=orange)](https://github.com/gminustwo/red_two/releases/latest)

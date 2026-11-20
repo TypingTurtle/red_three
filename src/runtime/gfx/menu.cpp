@@ -14,6 +14,8 @@
 // highlights, Bahnschrift (Windows' DIN-style face) for type.
 #include "gx_bridge.h"
 
+#include <unordered_map>
+
 #include <SDL3/SDL_dialog.h>
 #include <SDL3/SDL_events.h>
 #include <SDL3/SDL_gamepad.h>
@@ -50,6 +52,7 @@
 #include "../update.h"
 #include "../gyro.h"
 #include "../runtime.h"
+#include "../game.h"
 #include "../savestate.h"
 #include "../settings.h"
 
@@ -558,9 +561,34 @@ int s_row = 0;               // rows drawn so far on this page
 bool s_scrollToSel = false;  // the selection moved: bring it into view
 const char* s_help = nullptr;  // the selected row's description
 
+// The menu's texts name Rogue Leader and Red Two; another game's build (game.h) shows its own
+// names instead. Results are kept, so the pointer stays valid.
+const char* gameText(const char* s) {
+    if (!s || !strcmp(game::kGame.id, "GSWE64")) return s;
+    static std::unordered_map<std::string, std::string> cache;
+    auto [it, fresh] = cache.try_emplace(s);
+    if (fresh) {
+        std::string t = s;
+        const std::pair<const char*, const char*> names[] = {
+            {"Star Wars: Rogue Squadron II - Rogue Leader", game::kGame.fullTitle},
+            {"Rogue Leader", game::kGame.title},
+            {"GSWE64", game::kGame.id},
+            {"Red Two", game::kGame.app},
+        };
+        for (const auto& [from, to] : names)
+            for (size_t at = 0; (at = t.find(from, at)) != std::string::npos; at += strlen(to)) t.replace(at, strlen(from), to);
+        it->second = std::move(t);
+        if (cache.size() > 4096) cache.clear(), cache[s] = it->second;  // (texts built on the fly)
+        return cache[s].c_str();
+    }
+    return it->second.c_str();
+}
+
 void bodyFont(float px) { ImGui::SetWindowFontScale(px / kFontPx); }
 
 bool rowBegin(const char* text, const char* help) {
+    text = gameText(text);
+    help = gameText(help);
     const int idx = s_row++;
     int& selRow = s_rowSel[s_section];
     ImDrawList* dl = ImGui::GetWindowDrawList();
@@ -905,6 +933,7 @@ bool buttonRow(const char* text, const char* caption, const char* help, ImU32 ca
     ImGui::PopID();
     ImDrawList* dl = ImGui::GetWindowDrawList();
     valueFrame(dl, p, ImVec2(p.x + w, p.y + h), sel, hot);
+    caption = gameText(caption);
     const ImVec2 ts = ImGui::CalcTextSize(caption);
     dl->AddText(ImGui::GetFont(), ImGui::GetFontSize(), ImVec2(p.x + (w - ts.x) * 0.5f, p.y + (h - ts.y) * 0.5f),
                 sel ? kGold : captionCol, caption);
@@ -913,6 +942,7 @@ bool buttonRow(const char* text, const char* caption, const char* help, ImU32 ca
 
 // a gold heading with a rule after it
 void heading(const char* text) {
+    text = gameText(text);
     ImGui::Dummy(ImVec2(0, 4.f * s_ui));
     ImDrawList* dl = ImGui::GetWindowDrawList();
     const ImVec2 p = ImGui::GetCursorScreenPos();
@@ -1190,6 +1220,7 @@ void pageGameplay(settings::Settings& s) {
     if (toggleRow("Fast loading", s.fastDisc,
                   "Disc reads at SSD speed instead of the GameCube drive's 3 MB/s: a mission loads 10-15 s sooner."))
         s_changed = true;
+    if constexpr (!game::kRogueLeaderHooks) return;  // (Rogue Leader's hooks: hle_game_gswe64.cpp)
     heading("CINEMATICS");
     if (toggleRow("Skip intro logos", s.skipLogos, "Reach the title screen in seconds.")) s_changed = true;
     if (toggleRow("Skippable cutscenes", s.skipCutscenes,
@@ -1230,6 +1261,11 @@ void pageAudio(settings::Settings& s) {
 void infoRow(const char* text, const std::string& value, const char* help, ImU32 col);  // (below)
 
 void pageCheats(settings::Settings& s) {
+    if constexpr (!game::kRogueLeaderHooks) {
+        heading("CHEATS");
+        infoRow("Not yet", "-", "This build has no cheats or passcode unlocks for this game yet.", kDim);
+        return;
+    }
     heading("REBEL ALLIANCE CLEARANCE");
     if (toggleRow("Invincibility", s.invincible, "Your ship cannot be destroyed.")) s_changed = true;
     if (toggleRow("Infinite lives", s.infiniteLives, "Losing a ship costs no life.")) s_changed = true;
@@ -1320,7 +1356,7 @@ bool textRow(const char* text, std::string& value, bool password, const char* he
 void infoRow(const char* text, const std::string& value, const char* help, ImU32 col = kText) {
     const bool sel = rowBegin(text, help);
     ImGui::PushStyleColor(ImGuiCol_Text, sel ? vec(kGold) : vec(col));
-    ImGui::TextUnformatted(value.c_str());
+    ImGui::TextUnformatted(gameText(value.c_str()));
     ImGui::PopStyleColor();
 }
 
@@ -1626,7 +1662,7 @@ void browseOpen(const std::string& dir) {
     case mods::FolderKind::Pack: s_browseNote = "This is a texture pack folder: its textures load."; break;
     case mods::FolderKind::HoldsPack: s_browseNote = "Holds a texture pack: " + pack + " loads."; break;
     default:
-        s_browseNote = "No GSWE64 folder here: open your pack's folder, or use this one only if the pack's files are "
+        s_browseNote = std::string("No ") + game::kGame.id + " folder here: open your pack's folder, or use this one only if the pack's files are "
                        "inside it.";
         break;
     }
@@ -1865,9 +1901,9 @@ void pageDisc() {
         discPageClose();
     ImGui::Dummy(ImVec2(0, 8.f * s_ui));
     ImGui::PushStyleColor(ImGuiCol_Text, vec(kDim));
-    ImGui::TextWrapped("Red Two plays from your own disc image of Star Wars: Rogue Squadron II - Rogue Leader for the "
-                       "GameCube (USA, GSWE64, revision 0): an .iso, .gcm, .rvz or .wia file, as Dolphin uses them. "
-                       "Choose it once; Red Two remembers where it is.");
+    ImGui::TextWrapped("%s", gameText("Red Two plays from your own disc image of Star Wars: Rogue Squadron II - Rogue Leader for the "
+                                      "GameCube (USA, GSWE64, revision 0): an .iso, .gcm, .rvz or .wia file, as Dolphin uses them. "
+                                      "Choose it once; Red Two remembers where it is."));
     ImGui::PopStyleColor();
 }
 
@@ -2491,7 +2527,12 @@ bool drawMenu(settings::Settings& s, float t) {
     const float pad = 44.f * s_ui;
     const float titlePx = 50.f * s_ui;
     const float titleY = a.y + pad * 0.55f;
-    drawText(bg, s_fontBig, titlePx, ImVec2(a.x + pad, titleY), kGold, "RED TWO", 10.f * s_ui, alpha(kAmber, 50));
+    static const std::string appTitle = [] {
+        std::string t = game::kGame.app;
+        for (char& ch : t) ch = char(toupper(static_cast<unsigned char>(ch)));
+        return t;
+    }();
+    drawText(bg, s_fontBig, titlePx, ImVec2(a.x + pad, titleY), kGold, appTitle.c_str(), 10.f * s_ui, alpha(kAmber, 50));
     drawText(bg, s_font, 18.f * s_ui, ImVec2(a.x + pad + 2.f, titleY + titlePx * 1.02f), kHolo,
              s_launcher ? "ROGUE SQUADRON II  //  PRE-FLIGHT CHECK" : "ROGUE SQUADRON II  //  FLIGHT SYSTEMS CONFIGURATION",
              3.f * s_ui);

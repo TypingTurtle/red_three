@@ -36,6 +36,12 @@ int main(int argc, char** argv) {
             return 1;
         }
     }
+    for (uint32_t at : cfg.embeddedZlib) {
+        if (!img.addEmbedded(at, true)) {
+            fprintf(stderr, "no compressed embedded image at %08X\n", at);
+            return 1;
+        }
+    }
     for (auto& s : img.sections)
         printf("  %-4s %08X-%08X %s\n", s.name.c_str(), s.addr, s.end(), s.text ? "text" : "data");
     Analysis an(img, cfg);

@@ -51,6 +51,7 @@
 #include "mods.h"
 #include "achievements.h"
 #include "runtime.h"
+#include "game.h"
 #include "update.h"
 #include "settings.h"
 #include "../common/disc_image.h"
@@ -457,10 +458,14 @@ std::string discProblem(const std::string& path, std::string* what) {
         *what = (name.empty() ? std::string("a disc") : name) + " (" + id + (hdr[7] ? ", revision " + std::to_string(hdr[7]) : "") +
                 "), " + img->kind() + " image, " + size;
     }
-    if (id == "GSWE64") return hdr[7] == 0 ? std::string() : "This is revision " + std::to_string(hdr[7]) + " of the disc; Red Two was made from revision 0.";
-    if (id.compare(0, 3, "GSW") == 0)
-        return "This is Rogue Leader for another region (" + id + "); Red Two needs the USA release (GSWE64).";
-    return "This is " + (name.empty() ? std::string("another game") : name) + " (" + id + "), not Rogue Leader (USA, GSWE64).";
+    const auto& g = rt::game::kGame;
+    if (id == g.id)
+        return hdr[7] == g.revision ? std::string()
+                                    : "This is revision " + std::to_string(hdr[7]) + " of the disc; " + g.app + " was made from revision " +
+                                          std::to_string(g.revision) + ".";
+    if (id.compare(0, 3, g.prefix) == 0)
+        return std::string("This is ") + g.title + " for another region (" + id + "); " + g.app + " needs the USA release (" + g.id + ").";
+    return "This is " + (name.empty() ? std::string("another game") : name) + " (" + id + "), not " + g.title + " (USA, " + g.id + ").";
 }
 
 static u32 be32(const u8* p) { return (u32(p[0]) << 24) | (u32(p[1]) << 16) | (u32(p[2]) << 8) | p[3]; }
@@ -661,8 +666,10 @@ void viFrameHook() {
 static u32 bootDisc() {
     u8 hdr[0x440];
     if (!discRead(0, hdr, sizeof hdr)) fatal("cannot read the disc header");
-    if (memcmp(hdr, "GSWE64", 6) != 0) fatal("this is not Star Wars: Rogue Leader (USA): game ID %.6s", (const char*)hdr);
-    if (hdr[7] != 0) fatal("unsupported disc revision %u (rev 0 is supported)", hdr[7]);
+    if (memcmp(hdr, rt::game::kGame.id, 6) != 0)
+        fatal("this is not %s (USA, %s): game ID %.6s", rt::game::kGame.fullTitle, rt::game::kGame.id, (const char*)hdr);
+    if (hdr[7] != rt::game::kGame.revision)
+        fatal("unsupported disc revision %u (rev %u is supported)", hdr[7], unsigned(rt::game::kGame.revision));
     const u32 dolOff = be32(hdr + 0x420), fstOff = be32(hdr + 0x424), fstSize = be32(hdr + 0x428),
               fstMax = be32(hdr + 0x42C);
 
@@ -770,7 +777,7 @@ static void logSessionHeader(int argc, char** argv) {
     for (int i = 1; i < argc; i++) args += std::string(" ") + argv[i];
     char cwd[PATH_MAX] = "";
     if (!getcwd(cwd, sizeof cwd)) cwd[0] = 0;
-    logf("session", "Red Two %s started %s; exe %s (built %s)%s", rt::update::version(), now, exe, built.c_str(), args.c_str());
+    logf("session", "%s %s started %s; exe %s (built %s)%s", rt::game::kGame.app, rt::update::version(), now, exe, built.c_str(), args.c_str());
     logf("session", "working directory %s%s%s%s%s", cwd, s_sessionLog.empty() ? "" : "; log ", s_sessionLog.c_str(),
          getenv("APPIMAGE") ? "; AppImage " : "", getenv("APPIMAGE") ? getenv("APPIMAGE") : "");
 }
@@ -837,7 +844,7 @@ static void logSessionHeader(int argc, char** argv) {
     for (int i = 1; i < argc; i++) args += std::string(" ") + argv[i];
     char cwd[MAX_PATH] = "";
     GetCurrentDirectoryA(sizeof cwd, cwd);
-    logf("session", "Red Two %s started %04u-%02u-%02u %02u:%02u:%02u; exe %s (built %s)%s", rt::update::version(), now.wYear,
+    logf("session", "%s %s started %04u-%02u-%02u %02u:%02u:%02u; exe %s (built %s)%s", rt::game::kGame.app, rt::update::version(), now.wYear,
          now.wMonth, now.wDay, now.wHour, now.wMinute, now.wSecond, exe, built.c_str(), args.c_str());
     logf("session", "working directory %s%s%s", cwd, s_sessionLog.empty() ? "" : "; log ", s_sessionLog.c_str());
 }
@@ -849,8 +856,9 @@ static void logSessionHeader(int argc, char** argv) {
 // and on Linux EmuDeck's (~/Emulation/roms/gc) - whose disc ID is GSWE64.
 static std::string findDisc() {
     namespace fs = std::filesystem;
-    for (const char* p : {"orig/GSWE64.iso", "orig/GSWE64.rvz", "GSWE64.rvz", "GSWE64.iso"})
-        if (FILE* f = fopen(p, "rb")) {
+    const std::string gid = rt::game::kGame.id;
+    for (const std::string& p : {"orig/" + gid + ".iso", "orig/" + gid + ".rvz", gid + ".rvz", gid + ".iso"})
+        if (FILE* f = fopen(p.c_str(), "rb")) {
             fclose(f);
             return p;
         }
@@ -878,7 +886,7 @@ static std::string findDisc() {
             std::string err;
             auto img = disc::open(path, err);
             char id[6] = {};
-            if (img && img->read(0, id, 6) && !memcmp(id, "GSWE64", 6)) return path;
+            if (img && img->read(0, id, 6) && !memcmp(id, rt::game::kGame.id, 6)) return path;
         }
     }
     return {};
@@ -900,26 +908,28 @@ static std::string androidDisc() {
                 std::string err;
                 auto img = disc::open(path, err);
                 char id[8] = {};
-                if (img && img->read(0, id, 8) && !memcmp(id, "GSWE64", 6) && id[7] == 0) {
+                if (img && img->read(0, id, 8) && !memcmp(id, rt::game::kGame.id, 6) && u8(id[7]) == rt::game::kGame.revision) {
                     rt::android::callVoidWithString("saveDiscUri", uri);
                     logf("disc", "the picked disc %s", uri.c_str());
                     return path;
                 }
                 close(fd);
-                logf("disc", "%s is not Rogue Leader (USA, GSWE64 revision 0)%s%s", uri.c_str(), err.empty() ? "" : ": ", err.c_str());
+                logf("disc", "%s is not %s (USA, %s)%s%s", uri.c_str(), rt::game::kGame.title, rt::game::kGame.id,
+                     err.empty() ? "" : ": ", err.c_str());
                 if (asked)
-                    SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_WARNING, "Red Two",
-                                             "That file is not Star Wars: Rogue Squadron II - Rogue Leader (USA, GSWE64, revision 0). "
-                                             "Choose your disc image (.iso, .gcm, .rvz or .wia).",
+                    SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_WARNING, rt::game::kGame.app,
+                                             (std::string("That file is not ") + rt::game::kGame.fullTitle + " (USA, " + rt::game::kGame.id +
+                                              "). Choose your disc image (.iso, .gcm, .rvz or .wia).").c_str(),
                                              nullptr);
             } else {
                 logf("disc", "cannot open %s (moved or deleted?)", uri.c_str());
             }
         }
         if (!asked)
-            SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_INFORMATION, "Red Two",
-                                     "Red Two needs your own disc image of Star Wars: Rogue Squadron II - Rogue Leader (USA, GSWE64) "
-                                     "as .iso, .gcm, .rvz or .wia.\n\nChoose it on the next screen; Red Two remembers it.",
+            SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_INFORMATION, rt::game::kGame.app,
+                                     (std::string(rt::game::kGame.app) + " needs your own disc image of " + rt::game::kGame.fullTitle +
+                                      " (USA, " + rt::game::kGame.id + ") as .iso, .gcm, .rvz or .wia.\n\nChoose it on the next screen; " +
+                                      rt::game::kGame.app + " remembers it.").c_str(),
                                      nullptr);
         asked = true;
         uri = rt::android::callString("pickDisc");
@@ -1032,7 +1042,7 @@ int main(int argc, char** argv) {
     if (disc.empty()) disc = androidDisc();
     if (disc.empty()) fatal("no disc image picked");
 #endif
-    if (disc.empty() && !gfxOn) fatal("no disc image: pass --disc <your Rogue Leader .iso or .rvz>");
+    if (disc.empty() && !gfxOn) fatal("no disc image: pass --disc <your %s .iso or .rvz>", rt::game::kGame.title);
     ra::init(disc);  // RetroAchievements: logs in meanwhile, hashes the disc once it is known (if enabled)
     // the window first: its launcher asks for the disc if there is none (and the game boots after it)
     if (gfxOn) {

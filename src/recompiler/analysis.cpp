@@ -35,8 +35,11 @@ bool Config::load(const std::string& dir) {
     }
     lines.clear();
     if (readLines(dir + "/layout.txt", lines)) {
-        for (auto& l : lines)
-            if (l.size() >= 2 && l[0] == "embedded") embedded.push_back(uint32_t(std::stoul(l[1], nullptr, 16)));
+        for (auto& l : lines) {
+            if (l.size() < 2) continue;
+            if (l[0] == "embedded") embedded.push_back(uint32_t(std::stoul(l[1], nullptr, 16)));
+            else if (l[0] == "embedded_zlib") embeddedZlib.push_back(uint32_t(std::stoul(l[1], nullptr, 16)));
+        }
     }
     lines.clear();
     std::map<std::string, uint32_t> byName;

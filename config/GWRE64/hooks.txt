@@ -1,0 +1,25 @@
+# <kind> <name|address>   (see config/GSWE64/hooks.txt for the kinds)
+#   hle     replace with hle_<name> (src/runtime); the translated body stays as <fn>_orig
+#   savectx the function returns twice (its callers keep a jump buffer)
+#   entry   extra function entry the analysis cannot see
+#   noentry drop a false-positive entry
+#   idle    head of a spin-wait loop: its back-edge blocks the host thread until an event
+#           is due instead of spinning (the loop can only end through an interrupt)
+
+# OS context switching runs on host fibers (src/runtime/threads.cpp)
+savectx OSSaveContext
+hle     OSSaveContext
+hle     OSLoadContext
+hle     OSInitContext
+
+# Debug output and fatal paths (src/runtime/hle_os.cpp)
+hle     OSReport
+hle     PPCHalt
+
+# OS idle loop (after OSEnableInterrupts at 0x8002601C): no runnable thread, interrupts
+# enabled, spins on RunQueueBits (r13-26048) until an interrupt handler readies a thread
+idle    80026020
+
+# Not yet: MusyX's salBuildCommandList (Rogue Leader: the DSP-overload fix, hle_musyx.cpp).
+# Rebel Strike's MusyX seems to live in the VM text; without the hook, voices may drop when
+# the host is busy.

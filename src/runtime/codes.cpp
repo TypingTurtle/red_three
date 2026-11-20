@@ -20,6 +20,7 @@
 
 #include "mods.h"
 #include "runtime.h"
+#include "game.h"
 
 namespace rt::mods {
 namespace {
@@ -66,13 +67,14 @@ u32 asBits(float f) {
     return v;
 }
 
-// Where Rogue Leader (GSWE64) keeps code: the exception vectors, the main DOL's text, and the
+// Where the game keeps code (game.h): the exception vectors, the main DOL's text, and the
 // game's text in its virtual memory. (0x80001800-0x80003000, where Dolphin puts its code
 // handler, is free memory here: writes there are data.)
 bool isCodeAddr(u32 a) {
     if (a >= 0xC0000000u && a < 0xC1800000u) a -= 0x40000000u;
-    return (a >= 0x80000100u && a < 0x80001800u) || (a >= 0x80003100u && a < 0x8005C360u) ||
-           (a >= 0x7FC00000u && a < 0x7FD9E2F0u);
+    const auto& g = game::kGame;
+    return (a >= 0x80000100u && a < 0x80001800u) || (a >= g.sdkTextLo && a < g.sdkTextHi) ||
+           (a >= g.vmTextLo && a < g.vmTextHi);
 }
 
 std::string hex8(u32 v) {

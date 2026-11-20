@@ -37,6 +37,7 @@
 #include "mods.h"
 #include "runtime.h"
 #include "settings.h"
+#include "game.h"
 
 namespace rt::mods {
 namespace fs = std::filesystem;
@@ -256,7 +257,7 @@ std::string modTimeText(uint32_t secs) {
     return b;
 }
 
-bool isOurs(const uint8_t* entry) { return memcmp(entry, "GSWE64", 6) == 0; }
+bool isOurs(const uint8_t* entry) { return memcmp(entry, game::kGame.id, 6) == 0; }
 
 void addSave(DolphinScan& s, std::vector<uint8_t> gci, const std::string& where, const fs::path& from) {
     for (const auto& o : s.saves)
@@ -348,7 +349,8 @@ void scanUserDir(DolphinScan& s, const fs::path& user) {
 }
 
 void readCodes(std::vector<Code>& codes, const fs::path& dir) {
-    for (const char* name : {"GSW.ini", "GSWE64.ini", "GSWE64r0.ini"}) {
+    const std::string id = game::kGame.id;
+    for (const std::string& name : {std::string(game::kGame.prefix) + ".ini", id + ".ini", id + "r" + std::to_string(game::kGame.revision) + ".ini"}) {
         std::string text;
         if (readText(dir / name, text)) parseCodeIni(text, codes);
     }
@@ -583,12 +585,12 @@ int importCommandLine(const std::string& what) {
     int failures = 0;
     std::string msg;
     if (parts.count("saves")) {
-        if (s.saves.empty()) logf("mods", "no Rogue Leader save in Dolphin");
+        if (s.saves.empty()) logf("mods", "no %s save in Dolphin", game::kGame.title);
         else if (!importSave(s.saves.front(), msg)) logf("mods", "save: %s", msg.c_str()), failures++;
     }
     if (parts.count("textures")) {
         if (s.packs.empty()) {
-            logf("mods", "no Rogue Leader texture pack in Dolphin");
+            logf("mods", "no %s texture pack in Dolphin", game::kGame.title);
         } else {
             for (const auto& p : s.packs)
                 logf("mods", "texture pack %s: %zu files, %.1f GB", p.path.c_str(), p.files, double(p.bytes) / double(1ull << 30));

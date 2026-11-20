@@ -8,6 +8,7 @@
 #include <unordered_map>
 
 #include "runtime.h"
+#include "game.h"
 
 namespace rt {
 
@@ -78,7 +79,7 @@ bool ppAllows(u32 sr, u32 pp, bool write) {
 // pager(2, frame), restores every register from the frame and returns with rfi. We do the
 // same around the recompiled pager. (The ISI path is 0x800099A4 / 0x80095D04 / 3; recompiled
 // code never fetches instructions, so it is never taken.)
-constexpr u32 kPagerPtr = 0x80095D00;
+constexpr u32 kPagerPtr = game::kGame.pagerPtr;  // Rebel Strike: 0x800A1C28 (entry 0x8003D190)
 constexpr u32 kFrameSize = 716;
 
 // The pager's swap state (r13 = 0x8009ADA0): slot array (12-byte records: u16 next, prev,
@@ -87,7 +88,8 @@ constexpr u32 kFrameSize = 716;
 // a slot when it is paged in (0x8000831C) and keeps it until VMFreeRange (0x80008B9C, from
 // HeapFree of the VM heap) releases it; when the free list and the two reclaimable lists are
 // empty the game stops: "FATAL VM ERROR: Out of ARAM memory" (0x800082D4).
-constexpr u32 kSlotArrayPtr = 0x80095CD0, kSlotMapPtr = 0x80095CE4, kSlots = 1536, kGsysVmBase = 0x7F000000;
+constexpr u32 kSlotArrayPtr = game::kGame.vmSlotArrayPtr, kSlotMapPtr = game::kGame.vmSlotMapPtr,
+              kSlots = game::kGame.vmSlots, kGsysVmBase = game::kGame.vmMapBase;  // 0: not known (no reports)
 int s_aramLog = -1;  // R2_VM_SLOTS: 1 new pages + slot counts every 2 s
 
 void noteNewPage(Ctx& c) {
@@ -106,7 +108,7 @@ void pageFault(Ctx& c) {
         deliverException(c, 2, c.curFn);  // not installed yet: the OS reports it
         return;
     }
-    if (s_aramLog < 0) s_aramLog = getenv("R2_VM_SLOTS") ? atoi(getenv("R2_VM_SLOTS")) : 0;
+    if (s_aramLog < 0) s_aramLog = kSlotMapPtr && getenv("R2_VM_SLOTS") ? atoi(getenv("R2_VM_SLOTS")) : 0;
     if (s_aramLog) noteNewPage(c);
     const Ctx saved = c;
     const u32 sp = c.r[1] - kFrameSize;
