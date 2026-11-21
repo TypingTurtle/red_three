@@ -113,6 +113,8 @@ Categories=Game;ActionGame;
 Terminal=false
 EOF
 cp "$app/usr/share/applications/$appid.desktop" "$app/$appid.desktop"
+# RecompLauncher's profile at the AppDir root (/recomplauncher.json in the image): Red Three's
+[ "$game" = "GLRE64" ] && [ -f "$root/recomplauncher.json" ] && cp "$root/recomplauncher.json" "$app/recomplauncher.json"
 if [ -n "$icon" ]; then
     cp "$icon" "$app/usr/share/icons/hicolor/256x256/apps/$appid.png"
     cp "$icon" "$app/$appid.png"

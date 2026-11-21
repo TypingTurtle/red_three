@@ -62,6 +62,8 @@ $App folder and it comes along.
 Updating: unzip the new version, then copy this folder over the new one's.
 "@ | Set-Content -Encoding utf8 (Join-Path $stage "user\README.txt")
 Copy-Item (Join-Path $root "LICENSE") (Join-Path $stage "LICENSE.txt")
+# RecompLauncher's profile at the top of the zip, next to the program (Red Three's)
+if ($red3) { Copy-Item (Join-Path $root "recomplauncher.json") $stage }
 # The starter shader list (tools\make_shader_seed.py): Aurora merges it into the player's shader
 # cache at every start, so a new install compiles those shaders before the game begins.
 $seed = Join-Path $root "build\initial_pipeline_cache.db"

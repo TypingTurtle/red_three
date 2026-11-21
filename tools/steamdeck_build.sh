@@ -77,6 +77,7 @@ if [ $release -eq 1 ]; then
     cp "$bdir/RedThree-x86_64.AppImage" "$stage/"
     chmod +x "$stage/RedThree-x86_64.AppImage"
     cp "$src/LICENSE" "$stage/LICENSE.txt"
+    cp "$src/recomplauncher.json" "$stage/"  # (RecompLauncher: at the top, next to the program)
     cat > "$stage/README.txt" <<'TXT'
 Red Three - Star Wars: Rogue Squadron III - Rebel Strike, recompiled for Linux and Steam Deck
 https://github.com/TypingTurtle/red_three

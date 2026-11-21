@@ -1,5 +1,7 @@
 # Red Three
 
+<a href="https://recomplauncher.com"><picture><source media="(prefers-color-scheme: dark)" srcset="https://recomplauncher.com/assets/press/launcher/badge-light.svg"><img alt="Get it on RecompLauncher" src="https://recomplauncher.com/assets/press/launcher/badge-dark.svg" height="48"></picture></a>
+
 Red Three runs **Star Wars: Rogue Squadron III – Rebel Strike** (GameCube, USA) natively on PC.
 It's a static recompilation: when you build it, the game's machine code is translated from your
 own disc into C++ and compiled into a Windows or Linux program.
@@ -10,6 +12,8 @@ disc at build time.
 **Downloads:** Windows (zip) and Linux / Steam Deck (AppImage) builds are on the
 [Releases](../../releases) page. They contain the game's code in recompiled form, but none of its
 data: you still need your own disc image. Start the program and choose it the first time.
+[RecompLauncher](https://recomplauncher.com) can also install it, check your disc image, and keep
+it up to date.
 
 It's a fork of **[Red Two](https://github.com/gminustwo/red_two)**, which does the same for
 Rogue Leader.

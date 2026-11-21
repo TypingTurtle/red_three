@@ -1,0 +1,170 @@
+{
+  "$schema": "https://recomplauncher.com/schema/recomplauncher.json",
+  "format": 1,
+  "name": "Red Three",
+  "repo": "TypingTurtle/red_three",
+  "game": {
+    "kind": "iso",
+    "label": "Your disc image of Star Wars Rogue Squadron III: Rebel Strike, USA release (GLRE64): .iso, .gcm, .rvz or .wia.",
+    "check": { "ids": ["GLRE64"] }
+  },
+  "start": {
+    "program": ["red_three.exe", "RedThree-x86_64.AppImage", "red_three"],
+    "args": ["--disc", "{game}", "--no-launcher"]
+  },
+  "system": {
+    "windows": { "version": "10" },
+    "linux": { "glibc": "2.39" }
+  },
+  "config": [
+    {
+      "id": "main",
+      "format": "ini",
+      "file": [{ "path": "{data}/settings.ini" }]
+    }
+  ],
+  "settings": [
+    {
+      "id": "fullscreen", "label": "Window mode", "group": "Display",
+      "help": "Also F11 or Alt+Enter in the game.",
+      "choices": [
+        { "label": "Windowed", "set": { "fullscreen": "0" } },
+        { "label": "Fullscreen", "set": { "fullscreen": "1" } }
+      ],
+      "defaults": { "fullscreen": "0" }
+    },
+    {
+      "id": "resolution", "label": "Resolution", "group": "Display",
+      "help": "What the game draws at. Window size follows the window; 480p is the GameCube's own.",
+      "choices": [
+        { "label": "Window size", "set": { "resolution": "0" } },
+        { "label": "480p (native)", "set": { "resolution": "1" } },
+        { "label": "960p (2x)", "set": { "resolution": "2" } },
+        { "label": "1440p (3x)", "set": { "resolution": "3" } },
+        { "label": "2160p (4K)", "set": { "resolution": "4" } }
+      ],
+      "defaults": { "resolution": "0" }
+    },
+    {
+      "id": "msaa", "label": "Anti-aliasing", "group": "Display",
+      "help": "Smooths the edges of 3D objects.",
+      "choices": [
+        { "label": "Off", "set": { "msaa": "1" } },
+        { "label": "4x MSAA", "set": { "msaa": "4" } }
+      ],
+      "defaults": { "msaa": "1" }
+    },
+    {
+      "id": "anisotropy", "label": "Anisotropic filtering", "group": "Display",
+      "help": "Keeps textures sharp at steep angles, like the ground ahead.",
+      "choices": [
+        { "label": "Off", "set": { "anisotropy": "1" } },
+        { "label": "2x", "set": { "anisotropy": "2" } },
+        { "label": "4x", "set": { "anisotropy": "4" } },
+        { "label": "8x", "set": { "anisotropy": "8" } },
+        { "label": "16x", "set": { "anisotropy": "16" } }
+      ],
+      "defaults": { "anisotropy": "1" }
+    },
+    {
+      "id": "dither", "label": "Dither pattern", "group": "Display",
+      "help": "The game's own dither, made for 640x480. At higher resolutions it shows as a grid.",
+      "choices": [
+        { "label": "Off", "set": { "game_dither": "0" } },
+        { "label": "On", "set": { "game_dither": "1" } }
+      ],
+      "defaults": { "game_dither": "0" }
+    },
+    {
+      "id": "fps", "label": "Frame rate", "group": "Performance",
+      "help": "60 is the GameCube's own. Higher runs more frames per second at the game's normal speed.",
+      "choices": [
+        { "label": "60 FPS", "set": { "fps": "60" } },
+        { "label": "90 FPS", "set": { "fps": "90" } },
+        { "label": "120 FPS", "set": { "fps": "120" } },
+        { "label": "144 FPS", "set": { "fps": "144" } }
+      ],
+      "defaults": { "fps": "60" }
+    },
+    {
+      "id": "show_fps", "label": "Show frame rate", "group": "Performance",
+      "help": "Frames per second in the top-left corner.",
+      "choices": [
+        { "label": "Off", "set": { "show_fps": "0" } },
+        { "label": "On", "set": { "show_fps": "1" } }
+      ],
+      "defaults": { "show_fps": "0" }
+    },
+    {
+      "id": "precompile", "label": "Prepare shaders at start", "group": "Performance", "advanced": true,
+      "help": "Compiles every shader seen before on this PC before the game starts. Off starts sooner, with some pop-in.",
+      "choices": [
+        { "label": "On", "set": { "precompile_shaders": "1" } },
+        { "label": "Off", "set": { "precompile_shaders": "0" } }
+      ],
+      "defaults": { "precompile_shaders": "1" }
+    },
+    {
+      "id": "ubershaders", "label": "Ubershaders", "group": "Performance", "advanced": true,
+      "help": "Draws new objects with a generic shader while theirs compiles: no pop-in, more GPU work.",
+      "choices": [
+        { "label": "On", "set": { "ubershaders": "1" } },
+        { "label": "Off", "set": { "ubershaders": "0" } }
+      ],
+      "defaults": { "ubershaders": "1" }
+    },
+    {
+      "id": "fast_disc", "label": "Fast loading", "group": "Gameplay",
+      "help": "Reads the disc at SSD speed instead of the GameCube drive's.",
+      "choices": [
+        { "label": "On", "set": { "fast_disc": "1" } },
+        { "label": "Off", "set": { "fast_disc": "0" } }
+      ],
+      "defaults": { "fast_disc": "1" }
+    },
+    {
+      "id": "player2", "label": "Player 2", "group": "Multiplayer",
+      "help": "Who plays player 2 in co-op. Keyboard leaves player 1 on the controller.",
+      "choices": [
+        { "label": "Second controller", "set": { "player2": "controller" } },
+        { "label": "Keyboard", "set": { "player2": "keyboard" } },
+        { "label": "Off", "set": { "player2": "off" } }
+      ],
+      "defaults": { "player2": "controller" }
+    },
+    {
+      "id": "volume", "label": "Master volume", "group": "Audio",
+      "slider": { "key": "volume", "min": 0, "max": 100, "step": 5, "format": "%.0f" },
+      "defaults": { "volume": "100" }
+    },
+    {
+      "id": "speakers", "label": "Speakers", "group": "Audio",
+      "help": "Automatic follows your system's speaker setup.",
+      "choices": [
+        { "label": "Automatic", "set": { "speakers": "auto" } },
+        { "label": "Stereo", "set": { "speakers": "stereo" } },
+        { "label": "5.1 surround", "set": { "speakers": "5.1" } },
+        { "label": "7.1 surround", "set": { "speakers": "7.1" } }
+      ],
+      "defaults": { "speakers": "auto" }
+    },
+    {
+      "id": "background_audio", "label": "Sound in background", "group": "Audio",
+      "help": "Keep playing sound while another window is in front.",
+      "choices": [
+        { "label": "On", "set": { "background_audio": "1" } },
+        { "label": "Off", "set": { "background_audio": "0" } }
+      ],
+      "defaults": { "background_audio": "1" }
+    }
+  ],
+  "saves": ["{data}/saves", "{data}/settings.ini", "{data}/input.json"],
+  "folders": {
+    "saves": [{ "path": "{data}/saves" }],
+    "logs": [{ "path": "{data}/logs" }]
+  },
+  "actions": [
+    { "id": "open_saves", "label": "Memory card", "help": "The folder with your memory card.", "open": "saves" },
+    { "id": "open_logs", "label": "Logs", "help": "A log for each session, to attach to a bug report.", "open": "logs" }
+  ]
+}
