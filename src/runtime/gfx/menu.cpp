@@ -2902,16 +2902,34 @@ void setHudAnchoring(bool on) {
 
 // Perspective aspects the game's cameras were widened to (hle_CameraSetup): Aurora shows those
 // projections as they are. The latest 8; Aurora hears of each new one once.
-void noteWidenedAspect(float aspect) {
-    static float list[8] = {};
-    static u32 count = 0, next = 0;
-    for (u32 i = 0; i < count; i++)
-        if (std::abs(list[i] - aspect) < 0.0005f) return;
-    list[next] = aspect;
-    next = (next + 1) % 8;
-    count = std::min<u32>(count + 1, 8);
-    AuroraSetWidenedAspects(list, count);
-    logf("wide", "widened camera aspect %.4f", aspect);
+// The aspects cameras were widened to (Aurora leaves such projections alone). Deferred ones reach
+// Aurora at the next frame boundary (menuDraw): AuroraSetWidenedAspects drains the GX FIFO, which
+// in the middle of the game's frame (Rebel Strike's camera update) processed a command only half
+// written ("invalid alpha comp 16711935").
+static std::mutex s_widenedMutex;
+static float s_widenedList[8] = {};
+static u32 s_widenedCount = 0, s_widenedNext = 0;
+static bool s_widenedPending = false;
+
+void noteWidenedAspect(float aspect, bool deferred) {
+    {
+        std::lock_guard lock(s_widenedMutex);
+        for (u32 i = 0; i < s_widenedCount; i++)
+            if (std::abs(s_widenedList[i] - aspect) < 0.0005f) return;
+        s_widenedList[s_widenedNext] = aspect;
+        s_widenedNext = (s_widenedNext + 1) % 8;
+        s_widenedCount = std::min<u32>(s_widenedCount + 1, 8);
+        s_widenedPending = deferred;
+        if (!deferred) AuroraSetWidenedAspects(s_widenedList, s_widenedCount);
+    }
+    logf("wide", "widened camera aspect %.4f%s", aspect, deferred ? " (from the next frame)" : "");
+}
+
+static void applyWidenedAspects() {
+    std::lock_guard lock(s_widenedMutex);
+    if (!s_widenedPending) return;
+    s_widenedPending = false;
+    AuroraSetWidenedAspects(s_widenedList, s_widenedCount);
 }
 
 void menuImGuiInit(const void*) {
@@ -3111,6 +3129,7 @@ void menuDraw() {
     // widescreen: the game's cameras take the aspect the frame is rendered at (so they also cull
     // for it); 4:3 restores the original
     applyDisplayAspect();  // match window: a resize may cross the 21:9 limit
+    applyWidenedAspects();  // (noteWidenedAspect's deferred ones)
     {
         u32 w = 0, h = 0;
         AuroraGetRenderSize(&w, &h);

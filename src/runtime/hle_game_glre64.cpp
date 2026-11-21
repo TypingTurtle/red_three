@@ -56,7 +56,7 @@ void hle_ViewportAspect(Ctx& c) {
         memcpy(&factor, &bits, 4);
         if (factor > 0.1f && factor < 10.f) projection = rsingle(wide * factor);
     }
-    gfx::noteWidenedAspect(float(projection));
+    gfx::noteWidenedAspect(float(projection), true);  // (mid-frame: Aurora gets it at the frame boundary)
 }
 
 namespace unlocks {

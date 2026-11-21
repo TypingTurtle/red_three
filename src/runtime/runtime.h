@@ -175,7 +175,7 @@ void touchEvent(const void* sdlEvent);
 void touchDraw();
 bool touchApply(void* padStatus);
 void setHudAnchoring(bool on);  // gfx/menu.cpp: widescreen HUD pieces at the screen edges (in flight)
-void noteWidenedAspect(float aspect);  // gfx/menu.cpp: a projection aspect a camera was widened to
+void noteWidenedAspect(float aspect, bool deferred = false);  // gfx/menu.cpp: a projection aspect a camera was widened to (deferred: Aurora gets it at the next frame boundary; for game-thread hooks mid-frame)
 void buttonIconsUpdate();  // gfx/button_icons.cpp: Xbox / PlayStation button prompts per the setting, controller and bindings
 void buttonIconsNoteTexture(u32 fmt, u32 w, u32 h, const u8* data, u32 bytes);  // a bound texture (baked prompts)
 void setMenuTiling(bool on);    // gfx/gx_bridge.cpp: widescreen menu backgrounds tiled into the sides
