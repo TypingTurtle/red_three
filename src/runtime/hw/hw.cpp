@@ -1294,6 +1294,15 @@ u32 viXfbLines() {
     return nonInterlaced ? acv : acv * 2;
 }
 
+// The VI registers that place the picture (R2_COPY_LOG's display copies): VTR (lines), DCR
+// (mode), TFBL / BFBL (field frame buffers), PICCONF (stride, width) and HSR (scaling)
+std::string viDescribe() {
+    char b[160];
+    snprintf(b, sizeof b, "VTR %04X DCR %04X TFBL %04X%04X BFBL %04X%04X PICCONF %04X HSR %04X", vi[0], vi[1], vi[0x1C / 2],
+             vi[0x1E / 2], vi[0x24 / 2], vi[0x26 / 2], vi[0x48 / 2], vi[0x4A / 2]);
+    return b;
+}
+
 bool viLocateCopy(u32 dest, u32 strideBytes, u32& line, u32& lines) {
     lines = viXfbLines();
     if (!strideBytes || !lines) return false;

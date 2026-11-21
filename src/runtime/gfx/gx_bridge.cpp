@@ -1661,9 +1661,9 @@ void onCommand(const u8* p, u32 len) {
             const bool completes = shown && (line + h >= lines || (line == 0 && s_topCopied));
             if (shown && line == 0) s_topCopied = true;
             if (disp && s_copyLog)
-                logf("gfx", "display copy src %u,%u %ux%u stride %u -> %08X: %s line %u of %u (%u draws in the frame)", s_bp[0x49] & 0x3FF,
+                logf("gfx", "display copy src %u,%u %ux%u stride %u -> %08X: %s line %u of %u (%u draws in the frame) [%s]", s_bp[0x49] & 0x3FF,
                      (s_bp[0x49] >> 10) & 0x3FF, (s_bp[0x4A] & 0x3FF) + 1, h, stride, dest, shown ? "XFB" : "not in XFB",
-                     line, lines, s_frameDraws);
+                     line, lines, s_frameDraws, viDescribe().c_str());
             static const bool presentAtTexCopy = getenv("R2_NO_XFB") && atoi(getenv("R2_NO_XFB")) == 2;
             if (!disp && presentAtTexCopy) {  // debugging: show the EFB as a texture copy sees it
                 endFrame();
