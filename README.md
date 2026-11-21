@@ -88,17 +88,16 @@ Without `-DR2_GAME=GLRE64` you get Red Two for Rogue Leader instead.
 The Deck runs the Linux build, packed into a single AppImage file. Build it on a Linux PC, or on
 Windows inside WSL2 with Ubuntu 24.04 (the Deck needs SteamOS 3.6 or newer):
 
-1. Do the Linux build above.
-2. Install `squashfs-tools` and `patchelf`, and download the AppImage runtime
-   (`runtime-x86_64` from [AppImage/type2-runtime](https://github.com/AppImage/type2-runtime/releases/tag/continuous)).
-3. Pack it:
+1. Build and pack it in one step (it installs the packages it needs, so it asks for your
+   password once):
 
    ```bash
-   tools/make_appimage.sh --runtime runtime-x86_64 --build-dir build/rs
+   tools/steamdeck_build.sh "<path to your disc image>"
    ```
 
-   This makes `build/rs/RedThree-x86_64.AppImage`.
-4. Copy the AppImage and your disc image into the same folder on the Deck (or the disc image into
+   This makes `RedThree-x86_64.AppImage` next to your disc image. The steps it runs are in the
+   script if you'd rather do them by hand.
+2. Copy the AppImage and your disc image into the same folder on the Deck (or the disc image into
    `~/Emulation/roms/gc`), make the AppImage executable, and add it to Steam as a non-Steam game.
 
 Settings, saves and logs are in `~/.local/share/Red Three/` on the Deck. The AppImage contains the
