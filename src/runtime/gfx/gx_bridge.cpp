@@ -940,11 +940,13 @@ void sendProjection(float shiftX = 0.f, bool mirror = false, float axis = 0.f) {
 // R2_WATER=<item>[,<item>...] changes Rebel Strike's water draws (2 indirect stages, 12 TEV
 // stages) to find which part of its effect goes wrong: noind (no indirect texturing: no ripple
 // offsets, no bump alpha), cut<N> (only the first N TEV stages, the last one writing the
-// result), off<N> (TEV stage N passes the previous result through), skip (not drawn).
+// result), off<N> (TEV stage N passes the previous result through), nind<N> (TEV stage N
+// without its indirect lookup), noadd (no stage adds the previous stage's coordinates), skip
+// (not drawn).
 struct WaterExp {
-    bool on = false, noind = false, skip = false;
+    bool on = false, noind = false, skip = false, noadd = false;
     int cut = 0;
-    u32 offMask = 0;
+    u32 offMask = 0, nindMask = 0;
 };
 const WaterExp& waterExp() {
     static const WaterExp e = [] {
@@ -961,6 +963,8 @@ const WaterExp& waterExp() {
             else if (item == "skip") w.skip = true;
             else if (item.rfind("cut", 0) == 0) w.cut = atoi(item.c_str() + 3);
             else if (item.rfind("off", 0) == 0) w.offMask |= 1u << (atoi(item.c_str() + 3) & 15);
+            else if (item.rfind("nind", 0) == 0) w.nindMask |= 1u << (atoi(item.c_str() + 4) & 15);
+            else if (item == "noadd") w.noadd = true;
             if (end == std::string::npos) break;
             pos = end + 1;
         }
@@ -988,6 +992,10 @@ bool waterExperimentBegin() {
     }
     if (e.noind)
         for (u8 r = 0x10; r < 0x1C; r++) set(r, 0);
+    for (int st = 0; st < 12; st++) {
+        if (e.nindMask & (1u << st)) set(u8(0x10 + st), 0);
+        else if (e.noadd && (s_bp[0x10 + st] & (1u << 20))) set(u8(0x10 + st), s_bp[0x10 + st] & ~(1u << 20));
+    }
     for (int st = 0; st < 12; st++)
         if (e.offMask & (1u << st)) {
             set(u8(0xC0 + 2 * st), (s_bp[0xC0 + 2 * st] & 0xC00000) | 0x08FFF0);
