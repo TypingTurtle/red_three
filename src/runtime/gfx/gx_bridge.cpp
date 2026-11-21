@@ -943,11 +943,12 @@ void sendProjection(float shiftX = 0.f, bool mirror = false, float axis = 0.f) {
 // result), off<N> (TEV stage N passes the previous result through), nind<N> (TEV stage N
 // without its indirect lookup), noadd (no stage adds the previous stage's coordinates),
 // nomip<M> (texture map M at its full-size level only), near<M> (map M point sampled), zless
-// (depth test LESS instead of LEQUAL), noblend (no blending), skip (not drawn).
+// (depth test LESS instead of LEQUAL), noblend (no blending), wrap<M> (map M repeats instead of
+// clamping), skip (not drawn).
 struct WaterExp {
     bool on = false, noind = false, skip = false, noadd = false, zless = false, noblend = false;
     int cut = 0;
-    u32 offMask = 0, nindMask = 0, nomipMask = 0, nearestMask = 0;
+    u32 offMask = 0, nindMask = 0, nomipMask = 0, nearestMask = 0, wrapMask = 0;
 };
 const WaterExp& waterExp() {
     static const WaterExp e = [] {
@@ -970,6 +971,7 @@ const WaterExp& waterExp() {
             else if (item == "noblend") w.noblend = true;
             else if (item.rfind("nomip", 0) == 0) w.nomipMask |= 1u << (atoi(item.c_str() + 5) & 7);
             else if (item.rfind("near", 0) == 0) w.nearestMask |= 1u << (atoi(item.c_str() + 4) & 7);
+            else if (item.rfind("wrap", 0) == 0) w.wrapMask |= 1u << (atoi(item.c_str() + 4) & 7);
             if (end == std::string::npos) break;
             pos = end + 1;
         }
@@ -1018,6 +1020,7 @@ bool waterExperimentBegin() {
             set(mode0, (s_bp[mode0] & ~(7u << 5)) | (noMip << 5));
         }
         if (e.nearestMask & (1u << m)) set(mode0, s_bp[mode0] & ~((7u << 5) | (1u << 4)));  // point sampled, no mips
+        if (e.wrapMask & (1u << m)) set(mode0, (s_bp[mode0] & ~0xFu) | 0x5u);  // repeat in S and T (not clamp)
     }
     if (e.cut > 0 && e.cut < 12) {
         set(0x00, (s_bp[0] & ~(15u << 10)) | (u32(e.cut - 1) << 10));
