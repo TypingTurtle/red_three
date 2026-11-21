@@ -7,6 +7,10 @@ own disc into C++ and compiled into a Windows or Linux program.
 It isn't an emulator. This repository contains no game code or data; that all comes from your
 disc at build time.
 
+**Downloads:** Windows (zip) and Linux / Steam Deck (AppImage) builds are on the
+[Releases](../../releases) page. They contain the game's code in recompiled form, but none of its
+data: you still need your own disc image. Start the program and choose it the first time.
+
 It's a fork of **[Red Two](https://github.com/gminustwo/red_two)**, which does the same for
 Rogue Leader.
 
@@ -79,7 +83,7 @@ Known problems (details in [docs/KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md)):
 4. Run `build\rs\red_three.exe` (Windows) or `build/rs/red_three` (Linux). The launcher asks for
    your disc image the first time.
 
-The code a build generates from your disc is the game's code. Don't share it or commit it.
+The C++ a build generates from your disc goes into `build/`. Don't commit or share it.
 
 Without `-DR2_GAME=GLRE64` you get Red Two for Rogue Leader instead.
 
@@ -100,8 +104,8 @@ Windows inside WSL2 with Ubuntu 24.04 (the Deck needs SteamOS 3.6 or newer):
 2. Copy the AppImage and your disc image into the same folder on the Deck (or the disc image into
    `~/Emulation/roms/gc`), make the AppImage executable, and add it to Steam as a non-Steam game.
 
-Settings, saves and logs are in `~/.local/share/Red Three/` on the Deck. The AppImage contains the
-game's code from your disc, so it's for your own use only.
+Settings, saves and logs are in `~/.local/share/Red Three/` on the Deck. A ready-made AppImage is
+on the [Releases](../../releases) page if you'd rather not build it.
 
 ## Playing
 
@@ -132,6 +136,10 @@ Open an issue with:
 
 ## Legal
 
-The MIT license covers the code in this repository only, not the game code in a build. Star
-Wars, Rogue Leader and Rebel Strike are trademarks of Lucasfilm Ltd. GameCube is a trademark of
-Nintendo. This project isn't affiliated with or endorsed by either.
+Red Three is released under the [MIT License](LICENSE), as Red Two is. It covers this
+repository's own code only, not the game's code that a build (and the downloads) contain in
+recompiled form.
+
+This repository contains no code or assets from the game. Star Wars, Rogue Leader and Rebel
+Strike are trademarks of Lucasfilm Ltd.; GameCube is a trademark of Nintendo. This project isn't
+affiliated with or endorsed by them.
