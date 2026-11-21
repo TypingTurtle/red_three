@@ -46,8 +46,19 @@ enum : int {
     PB_CUR_HI = 61, PB_CUR_LO = 62,
     PB_COEFS = 63, PB_GAIN = 79, PB_PS = 80, PB_YN1 = 81, PB_YN2 = 82,
     PB_RATIO_HI = 83, PB_RATIO_LO = 84, PB_FRAC = 85, PB_LAST = 86,
-    PB_LOOP_PS = 90, PB_LOOP_YN1 = 91, PB_LOOP_YN2 = 92, PB_STREAM_LOOPS = 93,
+    PB_LOOP_PS = 90, PB_LOOP_YN1 = 91, PB_LOOP_YN2 = 92,
+#if defined(R2_GAME_GLRE64)
+    // Rebel Strike's newer MusyX: a one-pole low-pass filter per voice (on, its last output and
+    // two coefficients) before the loop counter, which moved to the end (0xC2). Its CPU reads that
+    // counter to learn a stream voice reached its first end and looped into its ring buffer, and
+    // only then gives the voice the ring's real end (sound code 0x7F664E2C): without it the
+    // music played on past the ring into unrelated sound memory - static after a second or two.
+    PB_LPF_ON = 93, PB_LPF_YN1 = 94, PB_LPF_A0 = 95, PB_LPF_B0 = 96, PB_STREAM_LOOPS = 97,
+    PB_WORDS = 98,
+#else
+    PB_STREAM_LOOPS = 93,
     PB_WORDS = 94,
+#endif
 };
 
 // buses: main L/R/S, aux A L/R/S, aux B L/R/S
@@ -342,6 +353,14 @@ void processVoice(u32 pbAddr) {
         if (v.w[PB_STATE] != 1) continue;
         s32 smp[kSub];
         resample(v, smp);
+#if defined(R2_GAME_GLRE64)
+        if (v.w[PB_LPF_ON]) {  // y = (a0 x + b0 y[-1]) >> 15, as AX's voice low-pass filter
+            const s64 a0 = v.w[PB_LPF_A0], b0 = v.w[PB_LPF_B0];
+            s32 y = s16(v.w[PB_LPF_YN1]);
+            for (int i = 0; i < kSub; i++) smp[i] = y = clamp16((a0 * smp[i] + b0 * y) >> 15);
+            v.w[PB_LPF_YN1] = u16(y);
+        }
+#endif
         s32 vol = v.w[PB_VE_VOL];
         const s32 vdelta = s16(v.w[PB_VE_DELTA]);
         for (int i = 0; i < kSub; i++) {
