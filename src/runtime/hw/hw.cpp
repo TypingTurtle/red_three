@@ -441,7 +441,11 @@ void siTransfer() {
     }
     for (u32 i = 0; i < 32; i++)
         si[0x20 + i] = (u32(resp[i * 4]) << 24) | (u32(resp[i * 4 + 1]) << 16) | (u32(resp[i * 4 + 2]) << 8) | resp[i * 4 + 3];
-    si[SICOMCSR] &= ~1u;
+    // COMERR tells about this transfer only. Left set from a failed one (an empty port), the
+    // next transfer to a controller reads as failed too: from the 2003 SDK on (Rebel Strike),
+    // CompleteTransfer reports COMERR with no error bits for the port as a collision, and PAD
+    // never gets past identifying the controller.
+    si[SICOMCSR] &= ~(1u | 0x20000000u);
     si[SICOMCSR] |= 0x80000000u;  // TCINT
     if (!ok) {
         si[SICOMCSR] |= 0x20000000u;           // COMERR
