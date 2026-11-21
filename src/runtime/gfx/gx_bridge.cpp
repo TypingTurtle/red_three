@@ -70,6 +70,9 @@ bool s_enabled = false;
 bool s_inFrame = false;
 u64 s_lastFrameTb = 0;
 u64 s_frames = 0;
+FILE* s_dump = nullptr;
+u64 s_dumpFrame = ~0ull;
+u64 s_dumpCount = 1;  // R2_GX_DUMP=<first>[,<count>]
 u64 s_vblanks = 0;    // retraces seen (R2_GX_SKIP windows)
 u32 s_frameDraws = 0;  // draws so far in this presented frame (R2_GX_SKIP i<from>-<to>)
 bool s_topCopied = false;  // this frame already has a display copy at the XFB's first line
@@ -362,6 +365,19 @@ void endFrame() {
     tileFrameEnd();
     s_inFrame = false;
     s_frames++;
+    // F11: dump the next two frames' GX commands to the user folder's logs (gx_frame_<n>.txt),
+    // for a picture that comes out wrong where the dump can show every draw and its state
+    {
+        static bool f11Was = false;
+        const bool* keys = SDL_GetKeyboardState(nullptr);
+        const bool f11 = keys && keys[SDL_SCANCODE_F11];
+        if (f11 && !f11Was && !s_dump && s_dumpFrame == ~0ull) {
+            s_dumpFrame = s_frames + 1;
+            s_dumpCount = 2;
+            logf("gfx", "F11: dumping frames %llu-%llu", (unsigned long long)s_dumpFrame, (unsigned long long)(s_dumpFrame + 1));
+        }
+        f11Was = f11;
+    }
     s_frameDraws = 0;
     s_topCopied = false;
     s_lastFrameTb = tbNow();
@@ -767,9 +783,6 @@ void prepareCopy(u32 cp) {
 // ---------------------------------------------------------------------------------------
 // R2_GX_DUMP=<frame>[,<count>]: write every command of those presented frames to
 // build/gx_frame_<frame>.txt
-FILE* s_dump = nullptr;
-u64 s_dumpFrame = ~0ull;
-u64 s_dumpCount = 1;  // R2_GX_DUMP=<first>[,<count>]
 u64 s_dumpAtTb = 0;   // R2_GX_DUMP=t<seconds>[;t<seconds>...][,<count>]: frames after those times
 std::vector<u64> s_dumpTimes;
 u64 s_dumpLast = ~0ull;
@@ -1496,8 +1509,11 @@ void onCommand(const u8* p, u32 len) {
     if (s_frames >= s_dumpFrame && s_frames < s_dumpFrame + s_dumpCount) [[unlikely]] {
         if (!s_dump) {
             char name[64];
-            snprintf(name, sizeof name, "build/gx_frame_%llu.txt", (unsigned long long)s_frames);
-            s_dump = fopen(name, "w");
+            snprintf(name, sizeof name, "gx_frame_%llu.txt", (unsigned long long)s_frames);
+            std::error_code ec;
+            const std::filesystem::path dir = std::filesystem::path(mods::userDir()) / "logs";
+            std::filesystem::create_directories(dir, ec);
+            s_dump = fopen((dir / name).string().c_str(), "w");
         }
         if (s_dump && s_frames != s_dumpLast) {
             // the frame's starting state: every BP register and the vertex arrays
@@ -1520,7 +1536,7 @@ void onCommand(const u8* p, u32 len) {
         fclose(s_dump);
         s_dump = nullptr;
         s_dumpFrame = ~0ull;
-        logf("gfx", "frames dumped to build/gx_frame_*.txt");
+        logf("gfx", "frames dumped to the logs folder (gx_frame_*.txt)");
     }
     const u8 op = p[0];
     if (op >= 0x80 && op < 0xC0) {
