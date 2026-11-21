@@ -379,9 +379,58 @@ void printHostStack(FILE* f, int skip) {
     }
 }
 
+// Which module an address is in, as "name+0xoffset".
+static std::string hostModuleOf(const void* addr) {
+    HMODULE mod = nullptr;
+    char name[MAX_PATH] = "?";
+    if (GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                           static_cast<LPCSTR>(addr), &mod) && mod) {
+        GetModuleFileNameA(mod, name, sizeof name);
+        const char* base = strrchr(name, '\\');
+        char buf[MAX_PATH + 32];
+        snprintf(buf, sizeof buf, "%s+0x%llx", base ? base + 1 : name,
+                 (unsigned long long)(uintptr_t(addr) - uintptr_t(mod)));
+        return buf;
+    }
+    return "?";
+}
+
 static LONG WINAPI onHostCrash(EXCEPTION_POINTERS* ep) {
-    fprintf(stderr, "\nFATAL: host exception %08lX at %p\n", ep->ExceptionRecord->ExceptionCode,
-            ep->ExceptionRecord->ExceptionAddress);
+    const EXCEPTION_RECORD* er = ep->ExceptionRecord;
+    fprintf(stderr, "\nFATAL: host exception %08lX at %p (%s)\n", er->ExceptionCode, er->ExceptionAddress,
+            hostModuleOf(er->ExceptionAddress).c_str());
+    if (er->ExceptionCode == EXCEPTION_ACCESS_VIOLATION && er->NumberParameters >= 2)
+        fprintf(stderr, "  %s address %p\n",
+                er->ExceptionInformation[0] == 0 ? "reading" : er->ExceptionInformation[0] == 1 ? "writing" : "executing",
+                (void*)er->ExceptionInformation[1]);
+    // Walk the faulting thread's stack from the exception context.
+    {
+        const HANDLE proc = GetCurrentProcess();
+        SymSetOptions(SYMOPT_UNDNAME | SYMOPT_DEFERRED_LOADS);
+        SymInitialize(proc, nullptr, TRUE);
+        CONTEXT ctx = *ep->ContextRecord;
+        STACKFRAME64 sf{};
+        sf.AddrPC.Offset = ctx.Rip;    sf.AddrPC.Mode = AddrModeFlat;
+        sf.AddrFrame.Offset = ctx.Rbp; sf.AddrFrame.Mode = AddrModeFlat;
+        sf.AddrStack.Offset = ctx.Rsp; sf.AddrStack.Mode = AddrModeFlat;
+        fprintf(stderr, "host call stack at the fault (thread %lu):\n", GetCurrentThreadId());
+        for (int i = 0; i < 48; i++) {
+            if (!StackWalk64(IMAGE_FILE_MACHINE_AMD64, proc, GetCurrentThread(), &sf, &ctx, nullptr,
+                             SymFunctionTableAccess64, SymGetModuleBase64, nullptr) || !sf.AddrPC.Offset)
+                break;
+            const DWORD64 a = sf.AddrPC.Offset;
+            alignas(SYMBOL_INFO) char buf[sizeof(SYMBOL_INFO) + 256];
+            auto* si = reinterpret_cast<SYMBOL_INFO*>(buf);
+            si->SizeOfStruct = sizeof(SYMBOL_INFO);
+            si->MaxNameLen = 255;
+            DWORD64 disp = 0;
+            if (SymFromAddr(proc, a, &disp, si))
+                fprintf(stderr, "  %s+0x%llx [%s]\n", si->Name, (unsigned long long)disp, hostModuleOf((void*)a).c_str());
+            else
+                fprintf(stderr, "  %p [%s]\n", (void*)a, hostModuleOf((void*)a).c_str());
+        }
+    }
+    fprintf(stderr, "%s", guestBacktrace().c_str());
     if (g_trace) printTraceRing(stderr, 40);
     quit(3);
     return EXCEPTION_EXECUTE_HANDLER;
