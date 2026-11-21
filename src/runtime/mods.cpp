@@ -246,9 +246,40 @@ bool portable() { return false; }
 std::string userDirNote() { return {}; }
 #endif
 
+// RecompLauncher passes RECOMPLAUNCHER_DATA ({install}/recompdata): everything the game writes
+// goes there, as in the portable user folder. Unset (every other start): as before.
+std::string launcherData() {
+    static const std::string dir = [] {
+        std::error_code ec;
+#ifdef _WIN32
+        const wchar_t* e = _wgetenv(L"RECOMPLAUNCHER_DATA");  // (UTF-16: any folder name)
+        if (!e || !*e) return std::string();
+        const fs::path p(e);
+        fs::create_directories(p, ec);
+        std::string d = utf8(p);
+        if (d.back() != '\\' && d.back() != '/') d += '\\';
+#else
+        const char* e = getenv("RECOMPLAUNCHER_DATA");
+        if (!e || !*e) return std::string();
+        std::string d = e;
+        fs::create_directories(d, ec);
+        if (d.back() != '/') d += '/';
+#endif
+        return d;
+    }();
+    return dir;
+}
+
 std::string userDir() {
     static const std::string dir = [] {
         std::string d;
+        if (d = launcherData(); !d.empty()) {
+#ifdef _WIN32
+            s_portable = true;  // (the memory card and the shader cache follow it, as portable)
+            s_userDirNote = "user folder: " + d + " (RecompLauncher's data folder)";
+#endif
+            return d;
+        }
 #ifdef _WIN32
         if (d = portableDir(); !d.empty()) return d;
 #endif

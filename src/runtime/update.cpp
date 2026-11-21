@@ -641,6 +641,9 @@ void init() {
     }
     const bool automated = envFlag("R2_BACKGROUND") || envFlag("R2_HEADLESS") || getenv("R2_INPUT");
     if ((automated && !envFlag("R2_UPDATE_CHECK")) || !settings::get().checkUpdates) return;
+    // Started by RecompLauncher (RECOMPLAUNCHER=1): it installs the new releases itself, and two
+    // updaters on one folder fight
+    if (const char* l = getenv("RECOMPLAUNCHER"); l && *l == '1') return;
     check();
 }
 

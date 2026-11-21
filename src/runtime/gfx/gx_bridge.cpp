@@ -1980,15 +1980,20 @@ bool init(int argc, char** argv, std::string& disc, const std::string& discNote)
     // (R2_BACKGROUND, R2_HEADLESS or R2_INPUT) keep their own in build/test_cache, so debugging
     // overrides never leave pipelines in the player's cache (Aurora warms the whole cache at
     // startup: one bad entry crashed every start). R2_CACHE_DIR picks any directory.
-    static std::string cacheDir;
+    static std::string cacheDir, userPathDir;
     if (const char* dir = getenv("R2_CACHE_DIR")) cacheDir = dir;
     else if (envFlag("R2_BACKGROUND") || envFlag("R2_HEADLESS") || getenv("R2_INPUT")) cacheDir = "build/test_cache/";
+    else if (const std::string l = mods::launcherData(); !l.empty()) {
+        cacheDir = l + "cache/";  // RecompLauncher's {data}/cache (left out of save backups)
+        userPathDir = l;          // input.json beside settings.ini
+    }
     else if (mods::portable()) cacheDir = mods::userDir();  // (else Aurora's own: %APPDATA%\Red Two, the same)
     if (!cacheDir.empty()) {
         std::error_code ec;
         std::filesystem::create_directories(cacheDir, ec);
         cfg.cachePath = cacheDir.c_str();
-        cfg.userPath = cacheDir.c_str();  // controller/keyboard bindings (input.json) too
+        if (userPathDir.empty()) userPathDir = cacheDir;
+        cfg.userPath = userPathDir.c_str();  // controller/keyboard bindings (input.json) too
     }
     cfg.desiredBackend = BACKEND_AUTO;
     cfg.msaa = settings::get().msaa >= 4 ? 4 : 1;  // (WebGPU: 1 or 4 samples)

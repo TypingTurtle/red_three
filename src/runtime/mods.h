@@ -20,6 +20,7 @@ namespace rt::mods {
 // ~/.local/share/Red Two/, on Android the app's shared storage folder
 // (Android/data/<package>/files/); ends with a separator; "" if unknown
 std::string userDir();
+std::string launcherData();  // RECOMPLAUNCHER_DATA (RecompLauncher's {data} folder), else empty
 bool portable();           // userDir() is the folder next to the program (Windows; mods.cpp portableDir)
 std::string userDirNote(); // which user folder and why, for the session log
 std::string texturesDir();  // where texture packs go (userDir()/textures/)
