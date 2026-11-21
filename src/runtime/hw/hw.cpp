@@ -376,6 +376,17 @@ void siPollAll() {
             continue;
         }
         siPollResponse(ch, hi, lo);
+        {   // diagnostics: the first button changes the game is offered (the controller conversation)
+            static u32 lastButtons[4] = {0x0080, 0x0080, 0x0080, 0x0080};
+            static int logged = 0;
+            const u32 b = hi >> 16;
+            if (b != lastButtons[ch] && logged < 24) {
+                logged++;
+                logf("si", "port %d: polled buttons %04X -> %04X (SIPOLL %08X, out %08X)", ch + 1, lastButtons[ch], b,
+                     si[SIPOLL], si[ch * 3]);
+            }
+            lastButtons[ch] = b;
+        }
         si[ch * 3 + 1] = hi;
         si[ch * 3 + 2] = lo;
         si[SISR] |= 0x20u << (8 * (3 - ch));  // RDST
@@ -399,6 +410,12 @@ void siTransfer() {
     }
     u8 resp[128] = {};
     bool ok = s_pad[ch].connected;
+    {   // diagnostics: the commands the game sends (each command and port once, then a count)
+        static u32 seen[4][256] = {};
+        if (seen[ch][buf[0]]++ < 2)
+            logf("si", "port %d: command %02X %02X %02X (out %u, in %u bytes)%s", ch + 1, buf[0], buf[1], buf[2], outLen, inLen,
+                 ok ? "" : ", no controller");
+    }
     if (ok) {
         const PadState& p = s_pad[ch];
         switch (buf[0]) {
@@ -437,6 +454,13 @@ void siTransfer() {
 u32 siRead(u32 off) {
     const u32 r = (off & 0xFF) / 4;
     const u32 v = si[r];
+    if (r < 12 && (r % 3) == 1) {
+        static bool first[4] = {};
+        if (!first[r / 3]) {
+            first[r / 3] = true;
+            logf("si", "port %u: the game reads polled input (first: %08X)", r / 3 + 1, v);
+        }
+    }
     if (r < 12 && (r % 3) == 1) si[SISR] &= ~(0x20u << (8 * (3 - r / 3)));  // reading INBUFH clears RDST
     return v;
 }
@@ -460,9 +484,16 @@ void siWrite(u32 off, u32 v) {
         }
         si[SISR] &= ~(v & 0x0F0F0F0Fu);  // clear error bits written as 1
         break;
-    case SIPOLL:
+    case SIPOLL: {
+        static int logged = 0;
+        if (v != si[SIPOLL] && logged < 16) {
+            logged++;
+            logf("si", "SIPOLL %08X: lines %u, times %u, ports %c%c%c%c, vblank copy %X", v, (v >> 16) & 0x3FF, (v >> 8) & 0xFF,
+                 (v & 0x80) ? '1' : '-', (v & 0x40) ? '2' : '-', (v & 0x20) ? '3' : '-', (v & 0x10) ? '4' : '-', v & 0xF);
+        }
         si[SIPOLL] = v;
         break;
+    }
     default: si[r] = v; break;
     }
 }
