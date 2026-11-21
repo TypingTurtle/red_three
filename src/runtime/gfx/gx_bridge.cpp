@@ -942,10 +942,10 @@ void sendProjection(float shiftX = 0.f, bool mirror = false, float axis = 0.f) {
 // offsets, no bump alpha), cut<N> (only the first N TEV stages, the last one writing the
 // result), off<N> (TEV stage N passes the previous result through), nind<N> (TEV stage N
 // without its indirect lookup), noadd (no stage adds the previous stage's coordinates),
-// nomip<M> (texture map M at its full-size level only), near<M> (map M point sampled), skip
-// (not drawn).
+// nomip<M> (texture map M at its full-size level only), near<M> (map M point sampled), zless
+// (depth test LESS instead of LEQUAL), noblend (no blending), skip (not drawn).
 struct WaterExp {
-    bool on = false, noind = false, skip = false, noadd = false;
+    bool on = false, noind = false, skip = false, noadd = false, zless = false, noblend = false;
     int cut = 0;
     u32 offMask = 0, nindMask = 0, nomipMask = 0, nearestMask = 0;
 };
@@ -966,6 +966,8 @@ const WaterExp& waterExp() {
             else if (item.rfind("off", 0) == 0) w.offMask |= 1u << (atoi(item.c_str() + 3) & 15);
             else if (item.rfind("nind", 0) == 0) w.nindMask |= 1u << (atoi(item.c_str() + 4) & 15);
             else if (item == "noadd") w.noadd = true;
+            else if (item == "zless") w.zless = true;
+            else if (item == "noblend") w.noblend = true;
             else if (item.rfind("nomip", 0) == 0) w.nomipMask |= 1u << (atoi(item.c_str() + 5) & 7);
             else if (item.rfind("near", 0) == 0) w.nearestMask |= 1u << (atoi(item.c_str() + 4) & 7);
             if (end == std::string::npos) break;
@@ -995,6 +997,9 @@ bool waterExperimentBegin() {
     }
     if (e.noind)
         for (u8 r = 0x10; r < 0x1C; r++) set(r, 0);
+    // a pixel two water tiles both cover: drawn once (LEQUAL -> LESS) / not blended
+    if (e.zless && ((s_bp[0x40] >> 1) & 7) == 3) set(0x40, (s_bp[0x40] & ~0xEu) | (1u << 1));
+    if (e.noblend) set(0x41, s_bp[0x41] & ~1u);
     for (int st = 0; st < 12; st++) {
         if (e.nindMask & (1u << st)) set(u8(0x10 + st), 0);
         else if (e.noadd && (s_bp[0x10 + st] & (1u << 20))) set(u8(0x10 + st), s_bp[0x10 + st] & ~(1u << 20));
