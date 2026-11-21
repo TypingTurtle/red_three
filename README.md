@@ -14,12 +14,6 @@ Red Two's [MIT license](LICENSE) is kept as is, and its original README is in
 [docs/RED_TWO_README.md](docs/RED_TWO_README.md). This fork is not affiliated with or endorsed
 by Red Two's authors, so please report Red Three problems here, not to them.
 
-## Status
-
-**Early and untested: it has not booted Rebel Strike yet.** The game's code recompiles and
-compiles; whether it runs is the next step. Expect graphics problems, and no cheats or other
-extras yet.
-
 ## Building
 
 You need your own disc image of Rebel Strike (USA, `GWRE64`): `.iso`, `.gcm`, `.rvz` or
