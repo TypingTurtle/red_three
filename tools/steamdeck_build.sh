@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Builds the Steam Deck AppImage in one go, on Linux or in WSL2 (Ubuntu 24.04):
 #   tools/steamdeck_build.sh [--release] "<path to your disc image>" [<folder to copy the AppImage to>]
-# --release: a download build (updates itself from the GitHub releases, -DR2_RELEASE=ON) in its
-# own build folder, and RedThree-linux-x64.zip with the AppImage and a readme next to it.
+# --release: a download build (updates itself from the GitHub releases, -DR2_RELEASE=ON), and
+# RedThree-linux-x64.zip with the AppImage and a readme next to it.
 # Installs the build packages (asks for your password once), extracts the code in the game's
 # data files, builds Red Three and packs RedThree-x86_64.AppImage.
 # In WSL the build runs in your Linux home folder (~/red_three_deck): building on /mnt/c is
@@ -53,8 +53,9 @@ if [ ! -f "$rescode/rescode.bin" ]; then
 fi
 
 echo "== build (the first one takes 30 minutes or more)"
+# one build folder for both: switching -DR2_RELEASE rebuilds only the updater
 bdir="$src/build/deck"; rel=OFF
-[ $release -eq 1 ] && { bdir="$src/build/deck-release"; rel=ON; }
+[ $release -eq 1 ] && rel=ON
 "$src/tools/build_linux.sh" --disc "$disc" --build-dir "$bdir" \
     -DR2_GAME=GLRE64 "-DR2_EXTRA_CODE=$rescode" "-DR2_RELEASE=$rel"
 
