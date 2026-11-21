@@ -11,9 +11,9 @@ body:
   - type: input
     id: version
     attributes:
-      label: Red Two version
-      description: Shown under the menu's title (F1, or the controller's Back / Select button), e.g. "VERSION 1.2", and on the log's first line.
-      placeholder: "1.2"
+      label: Red Three commit
+      description: The commit you built from (`git log --oneline -1` in your red_three folder), or the date you downloaded it.
+      placeholder: "343ddb3"
     validations:
       required: true
 
@@ -22,10 +22,9 @@ body:
     attributes:
       label: Platform
       options:
-        - Windows (the release zip)
-        - Steam Deck (the AppImage)
-        - Linux desktop (the AppImage)
-        - Built from source
+        - Windows
+        - Linux
+        - Steam Deck
     validations:
       required: true
 
@@ -44,7 +43,7 @@ body:
       label: Where, and how to make it happen
       description: The mission (or menu, cutscene, launcher) and the moment. Does it happen every time? The steps to get there help a lot.
       placeholder: |
-        Battle of Hoth, the first AT-AT, wrapping it with the tow cable. Every time.
+        Revenge of the Empire, flying low over the river. Every time.
     validations:
       required: true
 
@@ -53,9 +52,9 @@ body:
     attributes:
       label: Session log (required)
       description: |
-        **A bug report needs the log of the play session where the problem happened.** Every start of Red Two writes a new log, named by the date and time it started (`red_two_2026-11-19_18-36-22.log`). If you started Red Two again after the problem, the newest log is from that later start: pick the one from the session where it happened, by its date and time. Drag it into this box.
-        - **Windows**: the `user\logs` folder next to `red_two.exe` (an older install without a `user` folder: `%APPDATA%\Red Two\logs`)
-        - **Steam Deck / Linux**: `~/.local/share/Red Two/logs`
+        **A bug report needs the log of the play session where the problem happened.** Every start of Red Three writes a new log, named by the date and time it started (`red_two_2026-11-19_18-36-22.log`). If you started Red Three again after the problem, the newest log is from that later start: pick the one from the session where it happened, by its date and time. Drag it into this box.
+        - **Windows**: the `user\logs` folder next to `red_three.exe`
+        - **Steam Deck / Linux**: `~/.local/share/Red Three/logs`
 
         It lists your settings, the frame rate every 30 seconds, and what the game was doing in a freeze or a crash. It also shows folder paths, which can include your user name: edit those out if you like.
       placeholder: "Drop red_two_<date>_<time>.log here"
@@ -66,7 +65,7 @@ body:
     id: setup
     attributes:
       label: Your setup
-      description: Your controller (and whether you start Red Two through Steam), your display and the aspect ratio you play at, a texture pack if you use one, your PC's CPU and graphics card.
+      description: Your controller (and whether you start Red Three through Steam), your display and the aspect ratio you play at, a texture pack if you use one, your PC's CPU and graphics card.
       placeholder: "DualSense over Bluetooth, started from Steam; 3440x1440, 21:9, 120 fps; HD texture pack; Ryzen 7 5800X, RTX 3070"
 
   - type: textarea
@@ -80,8 +79,8 @@ body:
     attributes:
       label: Before you send it
       options:
-        - label: I'm playing my own disc image of the USA release (GSWE64, revision 0)
+        - label: I'm playing my own disc image of the USA release of Rebel Strike (GLRE64)
           required: true
-        - label: The log I attached is from the play session where the problem happened, not from a later start of Red Two (I checked its date and time)
+        - label: The log I attached is from the play session where the problem happened, not from a later start of Red Three (I checked its date and time)
           required: true
-        - label: I looked at the open issues, and this one isn't there yet
+        - label: I looked at the open issues and docs/KNOWN_ISSUES.md, and this one isn't there yet

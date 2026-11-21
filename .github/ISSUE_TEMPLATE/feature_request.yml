@@ -1,11 +1,11 @@
 name: Feature request
-description: An idea for Red Two, such as an option, a control, a graphics or sound setting, or support for something.
+description: An idea for Red Three, such as an option, a control, a graphics or sound setting, or support for something.
 labels: ["enhancement"]
 body:
   - type: markdown
     attributes:
       value: |
-        Thanks for the idea! Red Two runs the game's own code, so requests about the PC side (settings, controls, displays, mods) are the easiest to add; changes to the game itself are case by case.
+        Thanks for the idea! Red Three runs the game's own code, so requests about the PC side (settings, controls, displays, mods) are the easiest to add; changes to the game itself are case by case.
 
   - type: textarea
     id: idea
@@ -24,6 +24,6 @@ body:
   - type: input
     id: version
     attributes:
-      label: Red Two version
-      description: Shown under the menu's title (F1, or the controller's Back / Select button).
-      placeholder: "1.2"
+      label: Red Three commit
+      description: The commit you built from (`git log --oneline -1`), or the date you downloaded it.
+      placeholder: "343ddb3"
