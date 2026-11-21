@@ -174,6 +174,14 @@ void traceEnter(Ctx& c, u32 addr) {
                 logf("call", "%s(r3=%08X r4=%08X r5=%08X r6=%08X r7=%08X f1=%g f2=%g f3=%g) lr=%08X r1=%08X r2=%08X r13=%08X",
                      describeAddr(addr).c_str(), c.r[3], c.r[4], c.r[5], c.r[6], c.r[7], c.f[1], c.f[2], c.f[3], c.lr, c.r[1],
                      c.r[2], c.r[13]);
+                // the first words r3 and r4 point to (a structure argument: e.g. zlib's stream state)
+                for (int r = 3; r <= 4; r++) {
+                    const u32 p = u32(c.r[r]);
+                    if ((p >> 24) != 0x80 && (p >> 24) != 0x81 && !isVm(p)) continue;
+                    logf("call", "  [r%d] %08X %08X %08X %08X %08X %08X %08X %08X", r, peekGuest32(p), peekGuest32(p + 4),
+                         peekGuest32(p + 8), peekGuest32(p + 12), peekGuest32(p + 16), peekGuest32(p + 20), peekGuest32(p + 24),
+                         peekGuest32(p + 28));
+                }
                 break;
             }
     }
