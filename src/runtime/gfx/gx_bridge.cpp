@@ -1887,7 +1887,8 @@ void onCommand(const u8* p, u32 len) {
                 // shown 640 wide (Aurora patch 0036). Without it the picture was 80% as wide as it
                 // should be, with bars at the sides (issue #1).
                 static float s_sentScaleX = 1.f;
-                if (const float sx = viXfbScaleX(); sx != s_sentScaleX) {
+                static const bool noScale = envFlag("R2_NO_XFB_SCALE");  // (testing: as before patch 0036)
+                if (const float sx = noScale ? 1.f : viXfbScaleX(); sx != s_sentScaleX) {
                     s_sentScaleX = sx;
                     aur(GX_AURORA_SET_XFB_SCALE_X);
                     fifo::write_f32(sx);
