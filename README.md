@@ -4,8 +4,8 @@ Red Three runs **Star Wars: Rogue Squadron III – Rebel Strike** (GameCube, USA
 It's a static recompilation: when you build it, the game's machine code is translated from your
 own disc into C++ and compiled into a Windows or Linux program.
 
-It isn't an emulator, and it isn't a decompilation either. There's no hand-written game source in
-this repository and no game code or data at all; that all comes from your disc at build time.
+It isn't an emulator. This repository contains no game code or data; that all comes from your
+disc at build time.
 
 It's a fork of **[Red Two](https://github.com/gminustwo/red_two)**, which does the same for
 Rogue Leader.
