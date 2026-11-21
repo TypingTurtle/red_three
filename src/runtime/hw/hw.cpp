@@ -1303,6 +1303,14 @@ std::string viDescribe() {
     return b;
 }
 
+// How much wider than its pixels the VI shows the XFB: HSR's scaler (bit 12 on, step size in
+// bits 0-8, 1.8 fixed point). Rebel Strike's missions render 512 wide (HSR 10CD: x1.249, to 640).
+float viXfbScaleX() {
+    const u16 hsr = vi[0x4A / 2];
+    const u32 step = hsr & 0x1FF;
+    return (hsr & 0x1000) && step ? 256.f / float(step) : 1.f;
+}
+
 bool viLocateCopy(u32 dest, u32 strideBytes, u32& line, u32& lines) {
     lines = viXfbLines();
     if (!strideBytes || !lines) return false;

@@ -140,6 +140,7 @@ bool cinematicSkip();                         // hle_game.cpp: a cinematic is be
 void setGameAspect(double aspect);  // hle_game.cpp: the game's camera aspect (widescreen)
 // hw.cpp: a display copy to dest lands at this line of the VI's (front or back) frame buffer
 bool viLocateCopy(u32 dest, u32 strideBytes, u32& line, u32& lines);
+float viXfbScaleX();  // hw.cpp: the VI's horizontal scaling of the XFB (1: none)
 std::string viDescribe();  // hw.cpp: the VI registers that place the picture (for logs)
 // hw.cpp: memory card images (the save importer, dolphin_import.cpp)
 std::string cardImagePath(int slot);                       // the image file of slot A

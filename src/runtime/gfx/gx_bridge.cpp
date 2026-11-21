@@ -1883,6 +1883,15 @@ void onCommand(const u8* p, u32 len) {
                 aur(GX_AURORA_LOAD_DISP_COPY_DST);
                 fifo::write_u32(line);
                 fifo::write_u32(lines);
+                // The VI's horizontal scaling: the 512-wide XFB of Rebel Strike's missions is
+                // shown 640 wide (Aurora patch 0036). Without it the picture was 80% as wide as it
+                // should be, with bars at the sides (issue #1).
+                static float s_sentScaleX = 1.f;
+                if (const float sx = viXfbScaleX(); sx != s_sentScaleX) {
+                    s_sentScaleX = sx;
+                    aur(GX_AURORA_SET_XFB_SCALE_X);
+                    fifo::write_f32(sx);
+                }
             }
             prepareCopy(v);
             fifo::write_data(p, len);
