@@ -22,9 +22,8 @@ authors, so please report Red Three problems here, not to them.
 Early, but playable. The game boots, plays its cinematics with sound, saves to a memory card,
 and runs missions at 60 fps, including two-player co-op.
 
-Known problems:
+Known problems (details in [docs/KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md)):
 
-- Water has bright lines along its tile edges.
 - A grey copy of the last frame shows after some cinematics fade out.
 - A green screen can show briefly between levels.
 - Widescreen and the cheats in the launcher's Cheats tab were made for Rogue Leader and are
