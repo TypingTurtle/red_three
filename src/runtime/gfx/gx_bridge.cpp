@@ -39,6 +39,7 @@
 #include <initializer_list>
 #include <unordered_map>
 #include <unordered_set>
+#include <vector>
 
 #include "../../../extern/aurora/lib/gx/fifo.hpp"
 
@@ -935,6 +936,76 @@ void sendProjection(float shiftX = 0.f, bool mirror = false, float axis = 0.f) {
     for (u32 w : pr) fifo::write_u32(w);
 }
 
+// --- water experiments ----------------------------------------------------------------------
+// R2_WATER=<item>[,<item>...] changes Rebel Strike's water draws (2 indirect stages, 12 TEV
+// stages) to find which part of its effect goes wrong: noind (no indirect texturing: no ripple
+// offsets, no bump alpha), cut<N> (only the first N TEV stages, the last one writing the
+// result), off<N> (TEV stage N passes the previous result through), skip (not drawn).
+struct WaterExp {
+    bool on = false, noind = false, skip = false;
+    int cut = 0;
+    u32 offMask = 0;
+};
+const WaterExp& waterExp() {
+    static const WaterExp e = [] {
+        WaterExp w;
+        const char* s = getenv("R2_WATER");
+        if (!s || !*s) return w;
+        w.on = true;
+        std::string str(s);
+        size_t pos = 0;
+        while (pos <= str.size()) {
+            const size_t end = str.find(',', pos);
+            const std::string item = str.substr(pos, end == std::string::npos ? std::string::npos : end - pos);
+            if (item == "noind") w.noind = true;
+            else if (item == "skip") w.skip = true;
+            else if (item.rfind("cut", 0) == 0) w.cut = atoi(item.c_str() + 3);
+            else if (item.rfind("off", 0) == 0) w.offMask |= 1u << (atoi(item.c_str() + 3) & 15);
+            if (end == std::string::npos) break;
+            pos = end + 1;
+        }
+        logf("gfx", "water experiment: %s", s);
+        return w;
+    }();
+    return e;
+}
+bool isWaterDraw() {
+    const u32 gm = s_bp[0];
+    return ((gm >> 16) & 7) == 2 && ((gm >> 10) & 15) + 1 == 12;
+}
+std::vector<u32> s_waterRestore;  // BP writes that put the game's state back after the draw
+bool waterExperimentBegin() {
+    const WaterExp& e = waterExp();
+    if (!e.on || !isWaterDraw()) return false;
+    s_waterRestore.clear();
+    auto set = [](u8 reg, u32 v) {
+        s_waterRestore.push_back((u32(reg) << 24) | (s_bp[reg] & 0xFFFFFF));
+        bpFull((u32(reg) << 24) | (v & 0xFFFFFF));
+    };
+    if (e.skip) {  // drawn with every pixel rejected: an alpha test that never passes
+        set(0xF3, 0);
+        return true;
+    }
+    if (e.noind)
+        for (u8 r = 0x10; r < 0x1C; r++) set(r, 0);
+    for (int st = 0; st < 12; st++)
+        if (e.offMask & (1u << st)) {
+            set(u8(0xC0 + 2 * st), (s_bp[0xC0 + 2 * st] & 0xC00000) | 0x08FFF0);
+            set(u8(0xC1 + 2 * st), (s_bp[0xC1 + 2 * st] & 0xC00000) | 0x08FF80);
+        }
+    if (e.cut > 0 && e.cut < 12) {
+        set(0x00, (s_bp[0] & ~(15u << 10)) | (u32(e.cut - 1) << 10));
+        const int last = e.cut - 1;
+        set(u8(0xC0 + 2 * last), s_bp[0xC0 + 2 * last] & ~0xC00000u);
+        set(u8(0xC1 + 2 * last), s_bp[0xC1 + 2 * last] & ~0xC00000u);
+    }
+    return true;
+}
+void waterExperimentEnd() {
+    for (auto it = s_waterRestore.rbegin(); it != s_waterRestore.rend(); ++it) bpFull(*it);
+    s_waterRestore.clear();
+}
+
 // --- screen-space 2D ---------------------------------------------------------------------
 // The targeting computer (cockpit view, Y) draws its orange screen as a 2D quad in 640x480
 // screen units at corners the game projected from 3D with the camera's own projection, which
@@ -1577,8 +1648,10 @@ void onCommand(const u8* p, u32 len) {
             fifo::write_u8(0x61);
             fifo::write_u32(0x650003FFu);
         }
+        const bool water = waterExperimentBegin();
         fifo::write_data(p, len);
         fifo::finish_draw();
+        if (water) waterExperimentEnd();
         tileDraw(p, len);
         xwingDraw(p, len);
         cardFill(p, len);
