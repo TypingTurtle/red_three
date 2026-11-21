@@ -142,6 +142,14 @@ void pollEvents() {
             touchEvent(&e->sdl);
             audio::deviceEvent(&e->sdl);
         }
+        // F10: dump the next two frames' GX commands to the user folder's logs (gx_frame_<n>.txt),
+        // for a picture that comes out wrong, where the dump shows every draw and its state
+        if (e->type == AURORA_SDL_EVENT && e->sdl.type == SDL_EVENT_KEY_DOWN && !e->sdl.key.repeat &&
+            e->sdl.key.key == SDLK_F10 && !s_dump && s_dumpFrame == ~0ull) {
+            s_dumpFrame = s_frames + 1;
+            s_dumpCount = 2;
+            logf("gfx", "F10: dumping frames %llu-%llu", (unsigned long long)s_dumpFrame, (unsigned long long)(s_dumpFrame + 1));
+        }
         // F11 or Alt+Enter: toggle fullscreen
         if (e->type == AURORA_SDL_EVENT && e->sdl.type == SDL_EVENT_KEY_DOWN && !e->sdl.key.repeat &&
             (e->sdl.key.key == SDLK_F11 || (e->sdl.key.key == SDLK_RETURN && (e->sdl.key.mod & SDL_KMOD_ALT)))) {
@@ -365,19 +373,6 @@ void endFrame() {
     tileFrameEnd();
     s_inFrame = false;
     s_frames++;
-    // F11: dump the next two frames' GX commands to the user folder's logs (gx_frame_<n>.txt),
-    // for a picture that comes out wrong where the dump can show every draw and its state
-    {
-        static bool f11Was = false;
-        const bool* keys = SDL_GetKeyboardState(nullptr);
-        const bool f11 = keys && keys[SDL_SCANCODE_F11];
-        if (f11 && !f11Was && !s_dump && s_dumpFrame == ~0ull) {
-            s_dumpFrame = s_frames + 1;
-            s_dumpCount = 2;
-            logf("gfx", "F11: dumping frames %llu-%llu", (unsigned long long)s_dumpFrame, (unsigned long long)(s_dumpFrame + 1));
-        }
-        f11Was = f11;
-    }
     s_frameDraws = 0;
     s_topCopied = false;
     s_lastFrameTb = tbNow();
