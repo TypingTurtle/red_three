@@ -301,6 +301,20 @@ void processVoice(u32 pbAddr) {
     Voice v;
     for (int i = 0; i < PB_WORDS; i++) v.w[i] = be16(p + 2 * i);
     s_voices++;
+    if (voiceLogOn() && v.w[PB_STATE] == 1) {  // (R2_VOICE_LOG) a voice's loop and end as the CPU changes them
+        struct Seen { u32 loop, end; u16 fmt; };
+        static std::unordered_map<u32, Seen> seen;
+        static u32 lines = 0;
+        const Seen now{v.loop(), v.end(), v.w[PB_FORMAT]};
+        auto it = seen.find(pbAddr);
+        if (lines < 600 && (it == seen.end() || it->second.loop != now.loop || it->second.end != now.end || it->second.fmt != now.fmt)) {
+            lines++;
+            logf("voice", "list %llu PB %08X: fmt %02X loop %08X end %08X cur %08X (state %u looptype %u loopflag %u)",
+                 (unsigned long long)s_lists, pbAddr, now.fmt, now.loop, now.end, v.cur(), v.w[PB_STATE], v.w[PB_LOOP_TYPE],
+                 v.w[PB_LOOP_FLAG]);
+        }
+        seen[pbAddr] = now;
+    }
 
     // which buses this voice feeds (mixerCtrl, MusyX <= 2.0.0; see HandleDepopVoice)
     const u16 mc = v.w[PB_MIXER_CTRL];
