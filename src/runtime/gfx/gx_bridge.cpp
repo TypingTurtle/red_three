@@ -897,16 +897,25 @@ struct AxisMap {
     float origin, scale;  // the viewport sent (Aurora's XF units)
     float a, b;           // ndc' = a ndc + b
 };
-// R2_BOXBIAS=340: the box offset read as before (2 * field - 340, Aurora's scissor bias -340) and
-// viewports sent unchanged with the offset in the projection only - for comparing.
+// The box offset is read the old way (2 * field - 340, Aurora's scissor bias -340, the offset of 2
+// in the projection) except for Rebel Strike's water ripple map, which needs the exact placement:
+// drawn every frame into a 256x256 viewport at the EFB's corner and tiled across the water, its
+// first two rows and columns went undrawn the old way (a line along every water tile's edge).
+// Drawn everywhere, the exact placement makes the hangar's shadows flicker (not understood yet).
+// R2_BOXBIAS=342: the exact placement for every viewport (for that investigation).
 bool legacyBoxBias() {
-    static const bool on = getenv("R2_BOXBIAS") && atoi(getenv("R2_BOXBIAS")) == 340;
-    return on;
+    static const bool exact = getenv("R2_BOXBIAS") && atoi(getenv("R2_BOXBIAS")) == 342;
+    return !exact;
+}
+bool rippleMapViewport() {
+    const float sx = asFloat(s_xfVp[0]), sy = asFloat(s_xfVp[1]), ox = asFloat(s_xfVp[3]), oy = asFloat(s_xfVp[4]);
+    return sx == 128.f && sy == -128.f && ox == kGameVpBias + 128.f && oy == kGameVpBias + 128.f;
 }
 AxisMap axisMap(int axis) {
     const float s = asFloat(s_xfVp[axis]), o = asFloat(s_xfVp[3 + axis]);
-    const s32 off = axis ? s_boxOffY : s_boxOffX;
-    if (legacyBoxBias()) return {o, s, 1.f, off && s != 0.f ? -float(off) / s : 0.f};
+    const s32 readOff = axis ? s_boxOffY : s_boxOffX;
+    if (legacyBoxBias() && !rippleMapViewport()) return {o, s, 1.f, readOff && s != 0.f ? -float(readOff) / s : 0.f};
+    const s32 off = readOff + (legacyBoxBias() ? 340 - 342 : 0);  // the true offset (the SDK's 342)
     const float efbCenter = o - kGameVpBias;
     if (!off || s == 0.f) return {efbCenter + kAuroraVpBias, s, 1.f, 0.f};
     const float size = axis ? 528.f : 640.f;
