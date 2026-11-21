@@ -244,10 +244,16 @@ set_source_files_properties(src/runtime/update.cpp PROPERTIES COMPILE_DEFINITION
 # own res/red_two.ico (no game artwork; what public builds use: -DR2_ICON=res/red_two.ico).
 if(EXISTS "${CMAKE_SOURCE_DIR}/res/icon.ico")
     set(_r2_icon_default "${CMAKE_SOURCE_DIR}/res/icon.ico")
+elseif(R2_GAME STREQUAL "GLRE64")
+    set(_r2_icon_default "${CMAKE_SOURCE_DIR}/res/red_three.ico")  # Red Three's (R3)
 else()
     set(_r2_icon_default "${CMAKE_SOURCE_DIR}/res/red_two.ico")
 endif()
 set(R2_ICON "${_r2_icon_default}" CACHE FILEPATH "program icon (.ico, Windows)")
+# a build folder configured before Red Three had its own icon still has Red Two's cached
+if(R2_GAME STREQUAL "GLRE64" AND R2_ICON STREQUAL "${CMAKE_SOURCE_DIR}/res/red_two.ico")
+    set(R2_ICON "${_r2_icon_default}" CACHE FILEPATH "program icon (.ico, Windows)" FORCE)
+endif()
 if(WIN32 AND R2_ICON)
     get_filename_component(_r2_icon "${R2_ICON}" ABSOLUTE BASE_DIR "${CMAKE_SOURCE_DIR}")
     if(EXISTS "${_r2_icon}")
