@@ -8,6 +8,7 @@
 
 #include <atomic>
 #include <cmath>
+#include <cstdlib>
 #include <cstring>
 
 namespace rt {
@@ -26,7 +27,7 @@ bool cinematicSkip() { return false; }
 // aspect: the game renders and culls for it, and Aurora, told that projection is already wide,
 // leaves it alone. A letterboxed frame (cinematics: 304 lines) keeps the game's own, which
 // Aurora opens as before.
-// Off unless R2_WIDE_CULLING=1: with the wider volume the game crashed in the first mission frame
+// Off unless R2_WIDE_CULLING=1 (the camera update) or 2 (both callers): with the wider volume the game crashed in the first mission frame
 // ("invalid alpha comp 16711935" from its display-list drawing, 0x80008EB8 < 0x7F3B021C): most
 // likely one of its fixed-size per-frame buffers overflowing with the extra objects, as Rogue
 // Leader's terrain tables did (hle_game_gswe64.cpp). Until that buffer is found and enlarged the
@@ -46,7 +47,13 @@ void hle_ViewportAspect(Ctx& c) {
     const u32 camera = c.r[31];  // (the camera update keeps its camera there; preserved by the call)
     f_7F3AF42C_orig(c);
     if (lr != kCameraUpdateRet && lr != kSceneCameraRet) return;
-    static const bool gameCulling = !envFlag("R2_WIDE_CULLING");
+    // R2_WIDE_CULLING=1: the camera update only; 2: 0x7F5BC93C too (it builds small render-to-
+    // texture views - the crash came right after a 96x96 one)
+    static const int wideCulling = [] {
+        const char* e = getenv("R2_WIDE_CULLING");
+        return e ? atoi(e) : 0;
+    }();
+    const bool gameCulling = wideCulling <= 0 || (lr == kSceneCameraRet && wideCulling < 2);
     const double display = s_displayAspect.load(std::memory_order_relaxed);
     const double aspect = c.f[1];
     const u32 lines = viXfbLines();
