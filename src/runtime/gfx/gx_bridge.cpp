@@ -914,7 +914,16 @@ bool rippleMapViewport() {
 AxisMap axisMap(int axis) {
     const float s = asFloat(s_xfVp[axis]), o = asFloat(s_xfVp[3 + axis]);
     const s32 readOff = axis ? s_boxOffY : s_boxOffX;
-    if (legacyBoxBias() && !rippleMapViewport()) return {o, s, 1.f, readOff && s != 0.f ? -float(readOff) / s : 0.f};
+    if (legacyBoxBias() && !rippleMapViewport()) {
+        // a large offset (a split screen's second half: 226 lines) goes into the viewport where
+        // the moved viewport stays on the EFB - in the projection alone it is clipped at the
+        // viewport's edges (player 2's half black). The usual 2 stays in the projection.
+        if (std::abs(readOff) > 8 && s != 0.f) {
+            const float size = axis ? 528.f : 640.f, moved = o - float(readOff), c = moved - kAuroraVpBias, half = std::abs(s);
+            if (c - half >= -0.5f && c + half <= size + 0.5f) return {moved, s, 1.f, 0.f};
+        }
+        return {o, s, 1.f, readOff && s != 0.f ? -float(readOff) / s : 0.f};
+    }
     const s32 off = readOff + (legacyBoxBias() ? 340 - 342 : 0);  // the true offset (the SDK's 342)
     const float efbCenter = o - kGameVpBias;
     if (!off || s == 0.f) return {efbCenter + kAuroraVpBias, s, 1.f, 0.f};
