@@ -845,6 +845,7 @@ void dumpCommand(const u8* p, u32 len) {
 // its scissor, so while an offset is active the bridge re-sends the projection with the same
 // shift folded into its translation terms (the viewport itself must stay inside the target).
 u32 s_xfVp[6] = {};    // XF 0x101A..0x101F: viewport scale x/y/z, origin x/y/z
+bool s_vpKnown = false;
 u32 s_xfProj[7] = {};  // XF 0x1020..0x1026: projection p0..p5, type
 bool s_projKnown = false;
 s32 s_boxOffX = 0, s_boxOffY = 0;
@@ -879,6 +880,30 @@ void sendScissor() {
     bpFull(0x21000000u | (rt << 12) | bm);
 }
 
+// The box offset in each axis goes into the viewport itself where the moved viewport stays
+// inside the EFB, and into the projection otherwise. A shifted projection alone is clipped at
+// the viewport's edges: Rebel Strike's co-op ship select draws player 2's hangar into a
+// 224-line viewport at EFB rows 226-450 under a 226 offset - shifted up by the projection, all
+// of it fell outside that viewport, and the bottom half stayed black. A viewport that would
+// leave the EFB (the missions' full-height one, at the same offset) keeps the projection shift.
+bool viewportTakesOffset(int axis) {
+    const s32 off = axis ? s_boxOffY : s_boxOffX;
+    if (!off) return false;
+    const float scale = std::abs(asFloat(s_xfVp[axis])), origin = asFloat(s_xfVp[3 + axis]) - 342.f - float(off);
+    const float size = axis ? 528.f : 640.f;
+    return scale > 0.f && origin - scale >= -0.5f && origin + scale <= size + 0.5f;
+}
+
+void sendViewport() {
+    u32 vp[6];
+    memcpy(vp, s_xfVp, sizeof vp);
+    if (viewportTakesOffset(0)) vp[3] = asBits(asFloat(vp[3]) - float(s_boxOffX));
+    if (viewportTakesOffset(1)) vp[4] = asBits(asFloat(vp[4]) - float(s_boxOffY));
+    fifo::write_u8(0x10);
+    fifo::write_u32((5u << 16) | 0x101A);
+    for (u32 w : vp) fifo::write_u32(w);
+}
+
 // shiftX: orthographic draws moved by that much (NDC); mirror: orthographic draws reflected
 // about x = axis (NDC): x' = 2 axis - x.
 void sendProjection(float shiftX = 0.f, bool mirror = false, float axis = 0.f) {
@@ -895,8 +920,8 @@ void sendProjection(float shiftX = 0.f, bool mirror = false, float axis = 0.f) {
         // Perspective: ndc = clip / w with w = -z, so the shift enters p1/p3 negated;
         // orthographic: w = 1 and it adds directly.
         const float sx = asFloat(s_xfVp[0]), sy = asFloat(s_xfVp[1]);
-        const float dx = sx != 0.f ? -float(s_boxOffX) / sx : 0.f;
-        const float dy = sy != 0.f ? -float(s_boxOffY) / sy : 0.f;
+        const float dx = sx != 0.f && !viewportTakesOffset(0) ? -float(s_boxOffX) / sx : 0.f;
+        const float dy = sy != 0.f && !viewportTakesOffset(1) ? -float(s_boxOffY) / sy : 0.f;
         const bool ortho = pr[6] != 0;
         pr[1] = asBits(asFloat(pr[1]) + (ortho ? dx : -dx));
         pr[3] = asBits(asFloat(pr[3]) + (ortho ? dy : -dy));
@@ -1642,6 +1667,7 @@ void onCommand(const u8* p, u32 len) {
                 const u32 f = (0u - 170u) & 0x3FF;
                 bpFull(0x59000000u | (f << 10) | f);
                 sendScissor();
+                if (s_vpKnown) sendViewport();
                 sendProjection();
             }
             return;
@@ -1733,6 +1759,7 @@ void onCommand(const u8* p, u32 len) {
                 memcpy(&s_xfMtx[a], &w, 4);
             } else if (a >= 0x101A && a <= 0x101F) {
                 s_xfVp[a - 0x101A] = w;
+                s_vpKnown = true;
                 touched = true;
             } else if (a >= 0x1020 && a <= 0x1026) {
                 s_xfProj[a - 0x1020] = w;
@@ -1741,7 +1768,10 @@ void onCommand(const u8* p, u32 len) {
             }
         }
         fifo::write_data(p, len);
-        if (touched && (s_boxOffX || s_boxOffY)) sendProjection();
+        if (touched && (s_boxOffX || s_boxOffY)) {
+            if (s_vpKnown) sendViewport();
+            sendProjection();
+        }
         return;
     }
     case 0x40:  // CALL_DL: inlined by the CP model

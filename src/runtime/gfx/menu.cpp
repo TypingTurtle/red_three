@@ -56,6 +56,13 @@
 #include "../savestate.h"
 #include "../settings.h"
 
+// the header's game (the launcher and the in-game menu)
+#if defined(R2_GAME_GLRE64)
+#define kSeries "ROGUE SQUADRON III"
+#else
+#define kSeries "ROGUE SQUADRON II"
+#endif
+
 namespace rt::gfx {
 namespace {
 
@@ -2562,7 +2569,7 @@ bool drawMenu(settings::Settings& s, float t) {
     }();
     drawText(bg, s_fontBig, titlePx, ImVec2(a.x + pad, titleY), kGold, appTitle.c_str(), 10.f * s_ui, alpha(kAmber, 50));
     drawText(bg, s_font, 18.f * s_ui, ImVec2(a.x + pad + 2.f, titleY + titlePx * 1.02f), kHolo,
-             s_launcher ? "ROGUE SQUADRON II  //  PRE-FLIGHT CHECK" : "ROGUE SQUADRON II  //  FLIGHT SYSTEMS CONFIGURATION",
+             s_launcher ? kSeries "  //  PRE-FLIGHT CHECK" : kSeries "  //  FLIGHT SYSTEMS CONFIGURATION",
              3.f * s_ui);
     const float blink = 0.5f + 0.5f * std::sin(t * 3.f);
     const ImVec2 lamp(b.x - pad - 8.f * s_ui, titleY + titlePx * 0.45f);
