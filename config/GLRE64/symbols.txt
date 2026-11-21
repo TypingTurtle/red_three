@@ -7,6 +7,7 @@
 80022340 OSLoadContext           # lmw r13,0x34(r3) ... rfi
 80022444 OSInitContext           # stw r4,0x198(r3) (SRR0); stw r5,4(r3) (stack)
 80022874 OSReport                # printf-like; saves f1-f8 when cr1[6] is set (varargs)
+80023c30 RealMode                # srr0 = r3 & 0x3FFFFFFF, MSR[IR,DR] off, rfi: runs Config24MB (80023b30) / Config48MB (80023bb0)
 8001fff0 PPCHalt                 # sync; nop; li r3,0; nop; b . (the end of every fatal path)
 # The loader's VM fault entry (DSI vector stub -> here): builds a 716-byte frame, calls the
 # pager kept at 0x800A1C28 as pager(2, frame) (game.h: pagerPtr), rfi

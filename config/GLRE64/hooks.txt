@@ -16,6 +16,10 @@ hle     OSInitContext
 hle     OSReport
 hle     PPCHalt
 
+# The SDK's memory setup runs Config24MB/Config48MB in real mode through rfi (BATs); the runtime
+# maps memory itself (src/runtime/hle_os.cpp)
+hle     RealMode
+
 # OS idle loop (after OSEnableInterrupts at 0x8002601C): no runnable thread, interrupts
 # enabled, spins on RunQueueBits (r13-26048) until an interrupt handler readies a thread
 idle    80026020

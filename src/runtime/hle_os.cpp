@@ -103,4 +103,16 @@ void hle_OSPanic(Ctx& c) {
 
 void hle_PPCHalt(Ctx& c) { fatal("the game halted (PPCHalt, called from %08X)", c.lr); }
 
+// RealMode(fn) (the SDK's memory setup, __OSInitMemoryProtection; Rebel Strike's SDK has it,
+// Rogue Leader's does not): runs fn - Config24MB / Config48MB, which program the BATs - with
+// address translation off, entering and leaving through rfi. The runtime maps the console's
+// memory itself and keeps no BATs, so there is nothing to do.
+void hle_RealMode(Ctx& c) {
+    static bool logged = false;
+    if (!logged) {
+        logged = true;
+        logf("os", "RealMode(%08X): BAT setup skipped (the runtime maps memory itself)", u32(c.r[3]));
+    }
+}
+
 }  // namespace rt
