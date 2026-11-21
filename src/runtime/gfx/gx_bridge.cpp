@@ -866,6 +866,7 @@ bool s_boxBiasSent = false;
 
 // A BP write that is complete on its own (no pending mask from the game's stream).
 void bpFull(u32 v) {
+    if (s_dump) fprintf(s_dump, "  SENT BP %02X = %06X\n", v >> 24, v & 0xFFFFFF);
     fifo::write_u8(0x61);
     fifo::write_u32(0xFEFFFFFFu);
     fifo::write_u8(0x61);
@@ -924,6 +925,11 @@ void sendViewport() {
         vp[axis] = asBits(m.scale);
         vp[3 + axis] = asBits(m.origin);
     }
+    if (s_dump)
+        fprintf(s_dump, "  SENT viewport scale %g %g origin %g %g (Aurora EFB rect x %g-%g y %g-%g)\n", asFloat(vp[0]),
+                asFloat(vp[1]), asFloat(vp[3]), asFloat(vp[4]), asFloat(vp[3]) - 340.f - std::abs(asFloat(vp[0])),
+                asFloat(vp[3]) - 340.f + std::abs(asFloat(vp[0])), asFloat(vp[4]) - 340.f - std::abs(asFloat(vp[1])),
+                asFloat(vp[4]) - 340.f + std::abs(asFloat(vp[1])));
     fifo::write_u8(0x10);
     fifo::write_u32((5u << 16) | 0x101A);
     for (u32 w : vp) fifo::write_u32(w);
@@ -959,6 +965,9 @@ void sendProjection(float shiftX = 0.f, bool mirror = false, float axis = 0.f) {
                  s_boxOffY, ortho ? "ortho" : "persp", asFloat(s_xfProj[1]), asFloat(pr[1]), asFloat(s_xfProj[3]),
                  asFloat(pr[3]), sx, sy);
     }
+    if (s_dump)
+        fprintf(s_dump, "  SENT projection %g %g %g %g %g %g type %u\n", asFloat(pr[0]), asFloat(pr[1]), asFloat(pr[2]),
+                asFloat(pr[3]), asFloat(pr[4]), asFloat(pr[5]), pr[6]);
     fifo::write_u8(0x10);
     fifo::write_u32((6u << 16) | 0x1020);
     for (u32 w : pr) fifo::write_u32(w);
