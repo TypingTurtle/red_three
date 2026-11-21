@@ -127,6 +127,42 @@ u32 s_recentPos = 0;
 int s_cmdLog = 0;     // R2_FIFO_LOG=2: every command (first 16 bytes) once the GP FIFO has moved
 int s_gpFifoSets = 0;  // GP FIFO base writes (GXSetGPFifo)
 
+// The display list being run (runDisplayList), for reports of bad commands
+u32 s_dlAddr = 0, s_dlSize = 0;
+const u8* s_dlBase = nullptr;
+
+// An XF load setting the texgen count (0x103F) above 8, the hardware's limit: corrupt GX data
+// (Aurora copied that many texgens into its 8-entry table and overwrote the alpha compare:
+// "invalid alpha comp 16711935" with Rebel Strike's cameras widened, issue #1). The first few are
+// logged with where they came from, so the memory that was overwritten can be watched.
+void checkXfLoad(const u8* p, size_t len, int depth) {
+    if (len < 9) return;
+    const u32 hdr = be32(p + 1);
+    const u32 addr = hdr & 0xFFFF, cnt = (hdr >> 16) + 1;
+    if (addr > 0x103F || addr + cnt <= 0x103F || 5 + 4 * (0x103F - addr) + 4 > len) return;
+    const u32 v = be32(p + 5 + 4 * (0x103F - addr));
+    if (v <= 8) return;
+    static int reports = 0;
+    if (reports++ >= 4) return;
+    std::string where = depth && s_dlBase ? "display list" : "FIFO";
+    char b[96];
+    if (depth && s_dlBase) {
+        snprintf(b, sizeof b, " %08X size %X, at +%X", s_dlAddr, s_dlSize, u32(p - s_dlBase));
+        where += b;
+    }
+    logf("gx", "bad XF texgen count %08X (more than 8) from the %s", v, where.c_str());
+    if (depth && s_dlBase) {  // the bytes around it
+        const u32 at = u32(p - s_dlBase), from = at >= 32 ? at - 32 : 0, to = std::min(s_dlSize, at + 32);
+        std::string hex;
+        for (u32 i = from; i < to; i++) {
+            snprintf(b, sizeof b, "%02X%s", s_dlBase[i], i + 1 == at ? " |" : (i + 1) % 4 ? "" : " ");
+            hex += b;
+        }
+        logf("gx", "  bytes %08X..%08X: %s", s_dlAddr + from, s_dlAddr + to, hex.c_str());
+    }
+    logf("gx", "  %s", guestBacktrace().c_str());
+}
+
 void execute(const u8* p, size_t len, int depth) {
     const u8 op = p[0];
     bool known = true;
@@ -152,7 +188,10 @@ void execute(const u8* p, size_t len, int depth) {
             else if ((reg & 0xF8) == 0x90) s_vatC[reg & 7] = v;
             break;
         }
-        case 0x10: s_stats.xf++; break;
+        case 0x10:
+            s_stats.xf++;
+            checkXfLoad(p, len, depth);
+            break;
         case 0x20: case 0x28: case 0x30: case 0x38: s_stats.xf++; break;
         case 0x40: {
             s_stats.dl++;
@@ -204,6 +243,9 @@ void runDisplayList(u32 addr, u32 size, int depth) {
         logf("gx", "display list outside memory: %08X size %X", addr, size);
         return;
     }
+    s_dlAddr = addr;
+    s_dlSize = size;
+    s_dlBase = base;
     size_t pos = 0;
     while (pos < size) {
         const size_t len = cmdLength(base + pos, size - pos);
@@ -211,6 +253,7 @@ void runDisplayList(u32 addr, u32 size, int depth) {
         execute(base + pos, len, depth);
         pos += len;
     }
+    s_dlBase = nullptr;
 }
 
 // CP_CR bits
