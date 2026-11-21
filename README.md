@@ -1,63 +1,115 @@
 # Red Three
 
-An experimental fork of **[Red Two](https://github.com/gminustwo/red_two)** that aims to bring
-**Star Wars: Rogue Squadron III – Rebel Strike** (GameCube, USA, `GLRE64`) to PC.
+Red Three runs **Star Wars: Rogue Squadron III – Rebel Strike** (GameCube, USA) natively on PC.
+The game's code is recompiled from your own disc into a Windows or Linux program. It is not an
+emulator.
+
+It's a fork of **[Red Two](https://github.com/gminustwo/red_two)**, which does the same for
+Rogue Leader.
 
 ## Credit
 
-**Red Three is not original work.** Nearly all of it is Red Two, built by
-[gminustwo](https://github.com/gminustwo) and its contributors: the recompiler, the runtime,
-the audio and graphics, the menus and everything else. This fork only adds what's needed to
-point Red Two at a second game. Every commit before `354ae8b` is Red Two's own history.
+Almost all of this is Red Two's work, by [gminustwo](https://github.com/gminustwo) and
+contributors: the recompiler, the runtime, graphics, audio, input, menus and launcher. Red Three
+adds what Rebel Strike needs on top of that. Every commit before `354ae8b` is Red Two's history.
 
-Red Two's [MIT license](LICENSE) is kept as is, and its original README is in
-[docs/RED_TWO_README.md](docs/RED_TWO_README.md). This fork is not affiliated with or endorsed
-by Red Two's authors, so please report Red Three problems here, not to them.
+Red Two's [MIT license](LICENSE) applies unchanged. Its original README is in
+[docs/RED_TWO_README.md](docs/RED_TWO_README.md). Red Three isn't affiliated with Red Two's
+authors, so please report Red Three problems here, not to them.
+
+## Status
+
+Early, but playable. The game boots, plays its cinematics with sound, saves to a memory card,
+and runs missions at 60 fps, including two-player co-op.
+
+Known problems:
+
+- Water has bright lines along its tile edges.
+- A grey copy of the last frame shows after some cinematics fade out.
+- A green screen can show briefly between levels.
+- Widescreen and the cheats in the launcher's Cheats tab were made for Rogue Leader and are
+  turned off or unreliable here. The game's own passcodes work.
+
+## What you need
+
+- Your own copy of Rebel Strike, USA version (`GLRE64`), as `.iso`, `.gcm`, `.rvz` or `.wia`.
+  This repository contains no game code or data.
+- Python 3.
+- **Windows:** Visual Studio 2022 Build Tools with the C++ workload and its Clang tools, CMake
+  3.25 or newer, Ninja.
+- **Linux:** clang, lld, CMake 3.25 or newer, Ninja, and SDL3's build dependencies.
 
 ## Building
 
-You need your own disc image of Rebel Strike (USA, `GLRE64`): `.iso`, `.gcm`, `.rvz` or
-`.wia`. This repository contains no game code or data. Don't share the code your build
-generates.
+1. Get the code:
 
-**Windows** (Visual Studio 2022 Build Tools, CMake 3.25+, Ninja, LLVM clang-cl):
+   ```
+   git clone --recursive https://github.com/TypingTurtle/red_three
+   cd red_three
+   ```
 
-```powershell
-git clone --recursive https://github.com/TypingTurtle/red_three
-cd red_three
-powershell -ExecutionPolicy Bypass -File tools\build.ps1 -Disc "<your Rebel Strike.iso>" -BuildDir build\windows-rs -CMakeArgs "-DR2_GAME=GLRE64"
-build\windows-rs\red_three.exe
-```
+2. Extract the code Rebel Strike keeps inside its data files (the cinematics run it). Without
+   this step those parts run slowly and the sound breaks up:
 
-**Linux** (clang, lld, CMake 3.25+, Ninja, SDL3's build dependencies):
+   ```
+   python tools/extract_resource_code.py "<path to your disc image>" ../rescode
+   ```
 
-```bash
-git clone --recursive https://github.com/TypingTurtle/red_three
-cd red_three
-tools/build_linux.sh --disc "<your Rebel Strike.iso>" -DR2_GAME=GLRE64 --build-dir build/linux-rs
-build/linux-rs/red_three
-```
+3. Build. Use the full path to the `rescode` folder from step 2.
 
-Rebel Strike also runs code it keeps inside its resource packs (the cinematics need it). Extract
-it once with Python 3 and pass the folder to the build, or that code runs slowly in the
-interpreter:
+   Windows (PowerShell):
 
-```
-python tools/extract_resource_code.py "<your Rebel Strike.iso>" ../rescode
-```
+   ```powershell
+   powershell -ExecutionPolicy Bypass -File tools\build.ps1 -Disc "<path to your disc image>" -BuildDir build\rs -CMakeArgs "-DR2_GAME=GLRE64 -DR2_EXTRA_CODE=<full path to rescode>"
+   ```
 
-then add `-DR2_EXTRA_CODE=<full path to rescode>` next to `-DR2_GAME=GLRE64`. Like the rest of
-the generated code, it is your game's: keep it out of the repository.
+   If you also have a newer Visual Studio installed, add
+   `-VsPath "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools"`.
 
-Without `-DR2_GAME=GLRE64` the build gives you Red Two for Rogue Leader, unchanged.
+   Linux:
+
+   ```bash
+   tools/build_linux.sh --disc "<path to your disc image>" --build-dir build/rs -DR2_GAME=GLRE64 -DR2_EXTRA_CODE=<full path to rescode>
+   ```
+
+   The first build takes 30 minutes or more. Later builds only rebuild what changed.
+
+4. Run `build\rs\red_three.exe` (Windows) or `build/rs/red_three` (Linux). The launcher asks for
+   your disc image the first time.
+
+The code a build generates from your disc is the game's code. Don't share it or commit it.
+
+Without `-DR2_GAME=GLRE64` you get Red Two for Rogue Leader instead.
+
+## Playing
+
+Settings are in the launcher and in the in-game menu (F1).
+
+- **Controllers:** Xbox and PlayStation controllers and most others work. On an Xbox controller
+  the face buttons match by letter (Xbox B is GameCube B). Buttons can be remapped on the
+  Controls page.
+- **Keyboard:** WASD or the arrow keys fly, Space is A, Left Shift is B, E is X, Q is Y, R is Z,
+  1 and 2 are the L and R triggers, Enter is Start, T/F/G/H are the D-pad and I/J/K/L the C-stick.
+- **Co-op and versus:** Controls → Multiplayer → Player 2. "Next controller" gives player 2 to a
+  second controller. "Keyboard" gives player 2 the keyboard, so one controller and a keyboard is
+  enough for two players.
+- **Graphics:** internal resolution, anti-aliasing and anisotropic filtering are on the Display
+  page. HD texture packs in Dolphin's format load from the Mods page.
+- **Keys:** F1 menu, F11 or Alt+Enter fullscreen, F5 save state, F8 load state, F6/F7 change
+  save slot, F10 saves the next two frames' graphics commands to the logs folder (for bug
+  reports).
 
 ## Reporting a problem
 
-Open an issue with the session log from the run that went wrong (`user\logs` next to
-`red_three.exe` on Windows, `~/.local/share/Red Three/logs` on Linux) and what happened.
+Open an issue with:
+
+- what happened, and where in the game
+- a screenshot if it's a graphics problem
+- the session log from that run: `user\logs` next to `red_three.exe` on Windows,
+  `~/.local/share/Red Three/logs` on Linux
 
 ## Legal
 
-The MIT license covers this repository's code only, not the game's code in a build. Star Wars,
-Rogue Leader and Rebel Strike are trademarks of Lucasfilm Ltd.; GameCube is a trademark of
-Nintendo. This project is not affiliated with or endorsed by them.
+The MIT license covers the code in this repository only, not the game code in a build. Star
+Wars, Rogue Leader and Rebel Strike are trademarks of Lucasfilm Ltd. GameCube is a trademark of
+Nintendo. This project isn't affiliated with or endorsed by either.
