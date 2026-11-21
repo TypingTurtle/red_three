@@ -464,6 +464,49 @@ void Analysis::run() {
         if (walk(e, &f, nullptr, false)) funcs[e] = std::move(f);
     }
 
+    // lr labels (Function::lrLabels): constants built in a register (lis, then addi or ori)
+    // that reach mtlr and lie in the function's own body. Tracked in address order; any
+    // instruction that may write a register forgets its value.
+    for (auto& [e, f] : funcs) {
+        uint32_t val[32];
+        bool known[32] = {};
+        const std::set<uint32_t> body(f.insns.begin(), f.insns.end());
+        for (uint32_t pc : f.insns) {
+            const uint32_t w = img_.word(pc), o = w >> 26, d = (w >> 21) & 31, a = (w >> 16) & 31;
+            if (o == 15 && a == 0) {
+                val[d] = (w & 0xFFFF) << 16;
+                known[d] = true;
+                continue;
+            }
+            if (o == 14 && a == d && known[d]) {
+                val[d] += uint32_t(int32_t(int16_t(w & 0xFFFF)));
+                continue;
+            }
+            if (o == 24 && a == d && known[d]) {  // ori rA,rS,imm with rA == rS
+                val[d] |= w & 0xFFFF;
+                continue;
+            }
+            if (o == 31 && ((w >> 1) & 0x3FF) == 467 && ((w >> 16) & 0x1F) == 8 && ((w >> 11) & 0x1F) == 0) {  // mtlr rS
+                if (known[d] && body.count(val[d])) {
+                    f.lrLabels.insert(val[d]);
+                    f.labels.insert(val[d]);
+                }
+                continue;
+            }
+            // what this may write: rD for most, rA for logical/rotate forms; op 31: both
+            // (stores, compares and mtspr write no GPR)
+            const uint32_t xo = (w >> 1) & 0x3FF;
+            const bool store31 = o == 31 && (xo == 151 || xo == 183 || xo == 215 || xo == 247 || xo == 407 || xo == 439 ||
+                                             xo == 662 || xo == 918 || xo == 150 || xo == 0 || xo == 32 || xo == 467 ||
+                                             xo == 663 || xo == 695 || xo == 727 || xo == 759 || xo == 983 || xo == 54 ||
+                                             xo == 86 || xo == 246 || xo == 278 || xo == 470 || xo == 1014);
+            if ((o >= 7 && o <= 15) || (o >= 32 && o <= 35) || (o >= 40 && o <= 43) || o == 46) known[d] = false;
+            if ((o >= 20 && o <= 29) || o == 58) known[a] = false;
+            if (o == 31 && !store31) known[d] = known[a] = false;
+            if (o == 18 && (w & 1)) std::fill(known, known + 32, false);  // a call: anything
+        }
+    }
+
     for (auto& [e, f] : funcs)
         for (auto& [pc, jt] : f.tables)
             if (jt.guessed) {

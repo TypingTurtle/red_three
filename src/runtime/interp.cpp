@@ -6,6 +6,13 @@
 
 #include "runtime.h"
 #include "mods.h"
+#include "table.h"
+#include "../common/rescode_hash.h"
+
+#include <algorithm>
+#include <cstring>
+#include <unordered_map>
+#include <vector>
 
 #include <cstdio>
 #include <set>
@@ -407,12 +414,81 @@ void run(Ctx& c, u32 pc) {
 
 void call(Ctx& c, u32 target) {
     if (GuestFn fn = lookupFn(target)) fn(c);
-    else run(c, target);
+    else if (!runExtra(c, target)) run(c, target);
 }
 
 }  // namespace
 
 u64 g_interpCalls = 0;
+
+// --- code the game copies out of its resources (r2recomp --extra, gen/extra.cpp) ------------
+// Rebel Strike copies functions from its resource packs to main memory and calls them. The
+// recompiler translated them from tools/extract_resource_code.py's extract; here they are
+// recognised by their bytes wherever they landed (src/common/rescode_hash.h: the game's
+// relocations left out): the hash of the first 32 bytes picks the candidates, of all their
+// bytes confirms. Each address remembers what it held (its first 64 bytes, compared at every
+// call), so other code loaded there later is looked up again. The translation runs with
+// c.xbase = the address: the game relocated the code relative to it (emit.cpp, lis).
+namespace {
+u64 codeHash(const u8* p, u32 n) {
+    return rescode::hash([p](u32 i) { return u32(p[i] << 24 | p[i + 1] << 16 | p[i + 2] << 8 | p[i + 3]); }, n);
+}
+struct ExtraSeen {
+    GuestFn fn = nullptr;  // null: nothing recompiled matches
+    u32 headLen = 0;
+    u8 head[64];
+};
+}  // namespace
+
+GuestFn lookupExtra(u32 addr) {
+    if (!g_extraCount || (addr & 3) || ((addr >> 24) != 0x80 && (addr >> 24) != 0x81)) return nullptr;
+    const u32 phys = addr & 0x01FFFFFFu;
+    if (phys + 64 > kMem1Size) return nullptr;
+    static std::unordered_map<u32, ExtraSeen> seen;
+    const u8* p = physPtr(phys, 64);
+    if (!p) return nullptr;
+    if (auto it = seen.find(addr); it != seen.end()) {
+        if (!memcmp(it->second.head, p, it->second.headLen)) return it->second.fn;
+        seen.erase(it);
+    }
+    static std::unordered_multimap<u64, const ExtraFn*> byHead;
+    static std::vector<const ExtraFn*> shortFns;  // under 32 bytes: compared in full
+    if (byHead.empty() && shortFns.empty())
+        for (u32 i = 0; i < g_extraCount; i++) {
+            if (g_extraFns[i].len >= 32) byHead.emplace(g_extraFns[i].head, &g_extraFns[i]);
+            else shortFns.push_back(&g_extraFns[i]);
+        }
+    const ExtraFn* hit = nullptr;
+    const auto [lo, hi] = byHead.equal_range(codeHash(p, 32));
+    for (auto it = lo; it != hi && !hit; ++it) {
+        const ExtraFn* e = it->second;
+        if (phys + e->len > kMem1Size) continue;
+        if (const u8* q = physPtr(phys, e->len); q && codeHash(q, e->len) == e->hash) hit = e;
+    }
+    for (size_t i = 0; i < shortFns.size() && !hit; i++)
+        if (const u8* q = physPtr(phys, shortFns[i]->len); q && codeHash(q, shortFns[i]->len) == shortFns[i]->hash) hit = shortFns[i];
+    ExtraSeen& s = seen[addr];
+    s.fn = hit ? hit->fn : nullptr;
+    s.headLen = hit ? std::min<u32>(64, hit->len) : 64;
+    memcpy(s.head, p, s.headLen);
+    static int logged = 0;
+    if (logged < 64) {
+        logged++;
+        if (hit) logf("rescode", "%08X: resource code, runs recompiled (%s, %u bytes)", addr, describeAddr(hit->addr).c_str(), hit->len);
+        else logf("rescode", "%08X: no recompiled resource code matches (interpreted)", addr);
+    }
+    return s.fn;
+}
+
+bool runExtra(Ctx& c, u32 addr) {
+    GuestFn fn = lookupExtra(addr);
+    if (!fn) return false;
+    const u32 saved = c.xbase;
+    c.xbase = addr;
+    fn(c);
+    c.xbase = saved;
+    return true;
+}
 
 // Code the recompiler never saw (loaded at run time): the first time code in a new 64 KB block
 // of main memory is interpreted, the 256 KB around it are saved to the user folder as
@@ -437,6 +513,7 @@ static void snapshotInterpreted(Ctx& c, u32 addr) {
 }
 
 void interpret(Ctx& c, u32 addr) {
+    if (runExtra(c, addr)) return;
     static bool logged = false;
     static const bool interpLog = envFlag("R2_INTERP_LOG");
     if (!logged || interpLog) {

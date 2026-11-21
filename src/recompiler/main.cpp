@@ -8,6 +8,9 @@
 #include <cstring>
 #include <filesystem>
 #include <fstream>
+#include <sstream>
+#include <utility>
+#include <vector>
 #include <string>
 
 #include <exception>
@@ -27,8 +30,22 @@ static int run(int argc, char** argv) {
         return 2;
     }
     int files = 48;
-    for (int i = 4; i < argc; i++)
+    // --extra <file>@<hex addr>: more code as a text section (tools/extract_resource_code.py)
+    // --extra-entries <file>: "<hex addr> [name]" lines, function entries in it
+    std::vector<std::pair<std::string, uint32_t>> extras;
+    std::vector<std::string> extraEntryFiles;
+    for (int i = 4; i < argc; i++) {
         if (!strcmp(argv[i], "--files") && i + 1 < argc) files = atoi(argv[++i]);
+        else if (!strcmp(argv[i], "--extra") && i + 1 < argc) {
+            const std::string a = argv[++i];
+            const size_t at = a.rfind('@');
+            if (at == std::string::npos) {
+                fprintf(stderr, "--extra wants <file>@<hex address>\n");
+                return 2;
+            }
+            extras.emplace_back(a.substr(0, at), uint32_t(std::stoul(a.substr(at + 1), nullptr, 16)));
+        } else if (!strcmp(argv[i], "--extra-entries") && i + 1 < argc) extraEntryFiles.push_back(argv[++i]);
+    }
 
     const auto t0 = std::chrono::steady_clock::now();
     Image img;
@@ -49,6 +66,30 @@ static int run(int argc, char** argv) {
         if (!img.addEmbedded(at, true)) {
             fprintf(stderr, "no compressed embedded image at %08X\n", at);
             return 1;
+        }
+    }
+    for (auto& [path, at] : extras) {
+        if (!img.addRaw(path, at)) {
+            fprintf(stderr, "cannot read extra code %s\n", path.c_str());
+            return 1;
+        }
+    }
+    for (auto& path : extraEntryFiles) {
+        std::ifstream in(path);
+        if (!in) {
+            fprintf(stderr, "cannot read %s\n", path.c_str());
+            return 1;
+        }
+        std::string line;
+        while (std::getline(in, line)) {
+            if (line.empty() || line[0] == '#') continue;
+            std::istringstream ss(line);
+            std::string a, name;
+            ss >> a >> name;
+            if (a.empty()) continue;
+            const uint32_t addr = uint32_t(std::stoul(a, nullptr, 16));
+            cfg.extraEntries.insert(addr);
+            if (!name.empty() && !cfg.names.count(addr)) cfg.names[addr] = name;
         }
     }
     for (auto& s : img.sections)

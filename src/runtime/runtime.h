@@ -57,6 +57,8 @@ GuestFn lookupFn(u32 addr);
 GuestFn lookupOrig(u32 addr);  // translated body of a hooked function
 void tableInit();
 void interpret(Ctx& c, u32 addr);  // interp.cpp: code with no recompiled function
+GuestFn lookupExtra(u32 addr);      // interp.cpp: recompiled resource code the game copied to addr
+bool runExtra(Ctx& c, u32 addr);    // runs it there (relocation base: addr); false: none
 void profilerStart();  // profiler.cpp: R2_PROFILE=<seconds> (call on the guest's host thread)
 // profiler.cpp, always on: stall reports (no frame for 250 ms: where the game thread is) and a
 // perf line every 30 s. diagStart on the guest's host thread; diagFramePresented per frame.

@@ -28,3 +28,8 @@ idle    80026020
 # The CPU-side estimate (time since the AI interrupt) can look like several ms when the
 # host is busy, which made MusyX kill voices as "DSP overload" (src/runtime/hle_musyx.cpp).
 hle     salBuildCommandList
+
+# 0x8003BD44 (hand-written locked-cache vertex loop) puts 0x8003C194, inside itself, into lr
+# and jumps to DMA-wait helpers whose blr continues the loop there: a label, not a function
+# (analysis.cpp: lr labels)
+noentry 8003c194

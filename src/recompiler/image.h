@@ -116,6 +116,36 @@ struct Image {
     }
     std::vector<std::pair<uint32_t, uint32_t>> embeddedBss;
 
+    // A raw file as one more text section at addr (r2recomp --extra: code the game loads from
+    // its resources, extracted by tools/extract_resource_code.py), named X0, X1, ...
+    bool addRaw(const std::string& path, uint32_t addr) {
+        FILE* f = fopen(path.c_str(), "rb");
+        if (!f) return false;
+        fseek(f, 0, SEEK_END);
+        const long n = ftell(f);
+        fseek(f, 0, SEEK_SET);
+        if (n <= 0) {
+            fclose(f);
+            return false;
+        }
+        while (file.size() % 32) file.push_back(0);
+        const size_t at = file.size();
+        file.resize(at + size_t(n));
+        const bool ok = fread(&file[at], 1, size_t(n), f) == size_t(n);
+        fclose(f);
+        if (!ok) return false;
+        int nX = 0;
+        for (auto& s : sections) nX += s.name[0] == 'X';
+        Section s;
+        s.name = "X" + std::to_string(nX);
+        s.addr = addr;
+        s.size = uint32_t(n) & ~3u;
+        s.fileOff = uint32_t(at);
+        s.text = true;
+        sections.push_back(s);
+        return true;
+    }
+
     const Section* find(uint32_t a) const {
         for (auto& s : sections)
             if (a >= s.addr && a < s.end()) return &s;

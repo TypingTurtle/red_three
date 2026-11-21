@@ -20,6 +20,10 @@ struct Function {
     std::set<uint32_t> labels;              // branch targets inside the body
     std::map<uint32_t, JumpTable> tables;   // bctr address -> table
     std::set<uint32_t> tailEntries;         // fallthrough/branch into another entry: call + return
+    // Addresses inside the body that the function puts into lr itself (lis/addi or ori, then
+    // mtlr): hand-written code that jumps to a helper whose blr "returns" there (Rebel Strike's
+    // locked-cache vertex loop, 0x8003BD44). They are labels; a blr checks lr against them.
+    std::set<uint32_t> lrLabels;
 };
 
 struct Config {

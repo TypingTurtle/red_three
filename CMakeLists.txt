@@ -75,7 +75,7 @@ target_link_libraries(disc_compare PRIVATE zstd::libzstd)
 
 # --- generated code ---------------------------------------------------------------------
 set(GEN_DIR "${CMAKE_BINARY_DIR}/gen")
-set(GEN_SOURCES "${GEN_DIR}/table.cpp")
+set(GEN_SOURCES "${GEN_DIR}/table.cpp" "${GEN_DIR}/extra.cpp")
 math(EXPR _last "${R2_GEN_FILES} - 1")
 foreach(i RANGE ${_last})
     string(LENGTH "${i}" _len)
@@ -110,10 +110,19 @@ if(R2_GEN_FROM)
         COMMENT "Using generated code from ${R2_GEN_FROM}"
         VERBATIM)
 else()
+# R2_EXTRA_CODE: a folder from tools/extract_resource_code.py (rescode.bin, rescode.txt): code the
+# game keeps in its resources, recompiled too (Rebel Strike's cinematics run it); empty: none.
+set(R2_EXTRA_CODE "" CACHE PATH "folder made by tools/extract_resource_code.py (code from the game's resources)")
+set(_r2_extra_args "")
+set(_r2_extra_deps "")
+if(R2_EXTRA_CODE)
+    set(_r2_extra_args --extra "${R2_EXTRA_CODE}/rescode.bin@90000000" --extra-entries "${R2_EXTRA_CODE}/rescode.txt")
+    set(_r2_extra_deps "${R2_EXTRA_CODE}/rescode.bin" "${R2_EXTRA_CODE}/rescode.txt")
+endif()
 add_custom_command(
     OUTPUT ${GEN_SOURCES} "${GEN_DIR}/funcs.h"
-    COMMAND ${_r2_recomp} "${R2_DOL}" "${CMAKE_SOURCE_DIR}/config/${R2_GAME}" "${GEN_DIR}" --files ${R2_GEN_FILES}
-    DEPENDS ${_r2_recomp_dep} "${R2_DOL}" ${R2_CONFIG}
+    COMMAND ${_r2_recomp} "${R2_DOL}" "${CMAKE_SOURCE_DIR}/config/${R2_GAME}" "${GEN_DIR}" --files ${R2_GEN_FILES} ${_r2_extra_args}
+    DEPENDS ${_r2_recomp_dep} "${R2_DOL}" ${R2_CONFIG} ${_r2_extra_deps}
     COMMENT "Recompiling main.dol"
     VERBATIM)
 endif()

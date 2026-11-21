@@ -168,6 +168,7 @@ struct Ctx {
     u32 resvAddr;  // lwarx reservation
     u32 curFn;     // guest function being entered (tracing)
     void* fiber;        // host fiber running this context (threads.cpp)
+    u32 xbase;          // resource code (interp.cpp runExtra): the entry it was called at, its relocation base
     u32 resumeCtxAddr;  // context being resumed by ctxResumed
     void* pendingJmp;  // jump buffer of the caller of an OSSaveContext call in flight
 
