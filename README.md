@@ -38,6 +38,17 @@ tools/build_linux.sh --disc "<your Rebel Strike.iso>" -DR2_GAME=GLRE64 --build-d
 build/linux-rs/red_three
 ```
 
+Rebel Strike also runs code it keeps inside its resource packs (the cinematics need it). Extract
+it once with Python 3 and pass the folder to the build, or that code runs slowly in the
+interpreter:
+
+```
+python tools/extract_resource_code.py "<your Rebel Strike.iso>" ../rescode
+```
+
+then add `-DR2_EXTRA_CODE=<full path to rescode>` next to `-DR2_GAME=GLRE64`. Like the rest of
+the generated code, it is your game's: keep it out of the repository.
+
 Without `-DR2_GAME=GLRE64` the build gives you Red Two for Rogue Leader, unchanged.
 
 ## Reporting a problem
