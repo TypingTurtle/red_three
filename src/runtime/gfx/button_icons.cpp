@@ -72,8 +72,8 @@ struct GameIcon {
 };
 constexpr GameIcon kIcons[] = {
     {0x5327238285151b94ull, "A", SDL_GAMEPAD_BUTTON_SOUTH},
-    {0x3ca89f012e4cb21bull, "B", SDL_GAMEPAD_BUTTON_WEST},
-    {0xf9af139ad390db09ull, "X", SDL_GAMEPAD_BUTTON_EAST},
+    {0x3ca89f012e4cb21bull, "B", SDL_GAMEPAD_BUTTON_EAST},
+    {0xf9af139ad390db09ull, "X", SDL_GAMEPAD_BUTTON_WEST},
     {0xffd2bf4300eed61aull, "Y", SDL_GAMEPAD_BUTTON_NORTH},
 };
 
