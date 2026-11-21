@@ -36,12 +36,12 @@ struct Profile {
     uint32_t sdkTextLo, sdkTextHi, vmTextLo, vmTextHi;
 };
 
-#if defined(R2_GAME_GWRE64)
+#if defined(R2_GAME_GLRE64)
 // Star Wars: Rogue Squadron III - Rebel Strike (USA). Its main code (VM text 0x7F200000) is
 // stored zlib-compressed in main.dol (layout.txt: embedded_zlib); the pager pointer is the one
 // its DSI entry 0x8003D190 calls (lis 0x800A / lwz 0x1C28).
 inline constexpr Profile kGame = {
-    "GWRE64", "GWR", "Rebel Strike", "Star Wars: Rogue Squadron III - Rebel Strike", "Red Three", "red_three", nullptr, 0,
+    "GLRE64", "GLR", "Rebel Strike", "Star Wars: Rogue Squadron III - Rebel Strike", "Red Three", "red_three", nullptr, 0,
     0x800A1C28,
     0, 0, 0, 0,
     // MusyX (in the VM text): salCallback 0x7F65A6E0, r13 = 0x800A88A0. The flags come before
@@ -64,7 +64,7 @@ inline constexpr Profile kGame = {
 
 // Whether this build has Rogue Leader's game-side hooks (cheats, unlocks, widescreen at the
 // source, cutscene skip, ...). Other games start without them.
-#if defined(R2_GAME_GWRE64)
+#if defined(R2_GAME_GLRE64)
 inline constexpr bool kRogueLeaderHooks = false;
 #else
 inline constexpr bool kRogueLeaderHooks = true;

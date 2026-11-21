@@ -25,11 +25,11 @@ set(AURORA_ENABLE_TESTS OFF CACHE BOOL "" FORCE)
 set(AURORA_ENABLE_EXAMPLES OFF CACHE BOOL "" FORCE)
 add_subdirectory(extern/aurora EXCLUDE_FROM_ALL)
 
-# The game this build is for, by disc ID: GSWE64 (Star Wars: Rogue Leader, USA) or GWRE64 (Star
+# The game this build is for, by disc ID: GSWE64 (Star Wars: Rogue Leader, USA) or GLRE64 (Star
 # Wars: Rebel Strike, USA). Picks config/<ID>/, the game's hooks (src/runtime/hle_game_<id>.cpp)
 # and the names and addresses in src/runtime/game.h.
-set(R2_GAME "GSWE64" CACHE STRING "disc ID of the game to build: GSWE64 (Rogue Leader) or GWRE64 (Rebel Strike)")
-set_property(CACHE R2_GAME PROPERTY STRINGS GSWE64 GWRE64)
+set(R2_GAME "GSWE64" CACHE STRING "disc ID of the game to build: GSWE64 (Rogue Leader) or GLRE64 (Rebel Strike)")
+set_property(CACHE R2_GAME PROPERTY STRINGS GSWE64 GLRE64)
 if(NOT EXISTS "${CMAKE_SOURCE_DIR}/config/${R2_GAME}")
     message(FATAL_ERROR "R2_GAME=${R2_GAME}: no config/${R2_GAME}")
 endif()
@@ -120,7 +120,7 @@ endif()
 
 add_library(r2game STATIC ${GEN_SOURCES})
 set_target_properties(r2game PROPERTIES JOB_POOL_COMPILE r2gen)
-target_compile_definitions(r2game PRIVATE ${R2_DEFS} ${R2_GAME_DEFS})
+target_compile_definitions(r2game PRIVATE ${R2_DEFS})  # (the generated code needs no R2_GAME_DEFS)
 target_include_directories(r2game PUBLIC src/runtime "${GEN_DIR}")
 if(MSVC)
     # clang-cl: generated code is huge and full of labels
@@ -216,7 +216,7 @@ if(ANDROID)
     set_target_properties(red_two PROPERTIES OUTPUT_NAME main)  # libmain.so, what SDLActivity loads
 else()
     add_executable(red_two ${R2_RUNTIME_SOURCES})
-    if(R2_GAME STREQUAL "GWRE64")
+    if(R2_GAME STREQUAL "GLRE64")
         set_target_properties(red_two PROPERTIES OUTPUT_NAME red_three)  # Red Three
     endif()
 endif()

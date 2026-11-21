@@ -1815,11 +1815,13 @@ bool init(int argc, char** argv, std::string& disc, const std::string& discNote)
     cfg.windowHeight = 960;
     // (Linux desktops match the window to red-two.desktop - the AppImage's - by this id)
     SDL_SetHint(SDL_HINT_APP_ID, "red-two");
-    // smaller screens (the Steam Deck's 1280x800 desktop): a 4:3 window that fits its usable area
+    // a 4:3 window sized to the screen: smaller screens (the Steam Deck's 1280x800 desktop) get
+    // one that fits their usable area, larger ones (a 4K monitor) one about 80% of its height
+    // (the menus scale with the window). Usable bounds are in the same units as the window size.
     if (SDL_InitSubSystem(SDL_INIT_VIDEO)) {
         SDL_Rect usable{};
-        if (SDL_GetDisplayUsableBounds(SDL_GetPrimaryDisplay(), &usable) && usable.h > 0 && usable.h < 1000) {
-            const int h = std::max(480, usable.h - 60), w = h * 4 / 3;
+        if (SDL_GetDisplayUsableBounds(SDL_GetPrimaryDisplay(), &usable) && usable.h > 0) {
+            const int h = usable.h < 1000 ? std::max(480, usable.h - 60) : std::max(960, usable.h * 4 / 5), w = h * 4 / 3;
             cfg.windowWidth = u32(std::min(w, std::max(640, usable.w)));
             cfg.windowHeight = u32(h);
         }

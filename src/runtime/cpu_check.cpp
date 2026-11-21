@@ -49,7 +49,7 @@ int checkCpu() {
     const bool test = GetEnvironmentVariableW(L"R2_CPU_CHECK_TEST", nullptr, 0) != 0;
     if (!missing[0] && !test) return 0;
     if (!missing[0]) wcscpy_s(missing, L"nothing (R2_CPU_CHECK_TEST)");
-#ifdef R2_GAME_GWRE64
+#ifdef R2_GAME_GLRE64
     const wchar_t* kApp = L"Red Three";
 #else
     const wchar_t* kApp = L"Red Two";

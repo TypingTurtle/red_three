@@ -1,7 +1,7 @@
 # Red Three
 
 An experimental fork of **[Red Two](https://github.com/gminustwo/red_two)** that aims to bring
-**Star Wars: Rogue Squadron III – Rebel Strike** (GameCube, USA, `GWRE64`) to PC.
+**Star Wars: Rogue Squadron III – Rebel Strike** (GameCube, USA, `GLRE64`) to PC.
 
 ## Credit
 
@@ -16,7 +16,7 @@ by Red Two's authors, so please report Red Three problems here, not to them.
 
 ## Building
 
-You need your own disc image of Rebel Strike (USA, `GWRE64`): `.iso`, `.gcm`, `.rvz` or
+You need your own disc image of Rebel Strike (USA, `GLRE64`): `.iso`, `.gcm`, `.rvz` or
 `.wia`. This repository contains no game code or data. Don't share the code your build
 generates.
 
@@ -25,7 +25,7 @@ generates.
 ```powershell
 git clone --recursive https://github.com/TypingTurtle/red_three
 cd red_three
-powershell -ExecutionPolicy Bypass -File tools\build.ps1 -Disc "<your Rebel Strike.iso>" -BuildDir build\windows-rs -CMakeArgs "-DR2_GAME=GWRE64"
+powershell -ExecutionPolicy Bypass -File tools\build.ps1 -Disc "<your Rebel Strike.iso>" -BuildDir build\windows-rs -CMakeArgs "-DR2_GAME=GLRE64"
 build\windows-rs\red_three.exe
 ```
 
@@ -34,11 +34,11 @@ build\windows-rs\red_three.exe
 ```bash
 git clone --recursive https://github.com/TypingTurtle/red_three
 cd red_three
-tools/build_linux.sh --disc "<your Rebel Strike.iso>" -DR2_GAME=GWRE64 --build-dir build/linux-rs
+tools/build_linux.sh --disc "<your Rebel Strike.iso>" -DR2_GAME=GLRE64 --build-dir build/linux-rs
 build/linux-rs/red_three
 ```
 
-Without `-DR2_GAME=GWRE64` the build gives you Red Two for Rogue Leader, unchanged.
+Without `-DR2_GAME=GLRE64` the build gives you Red Two for Rogue Leader, unchanged.
 
 ## Reporting a problem
 

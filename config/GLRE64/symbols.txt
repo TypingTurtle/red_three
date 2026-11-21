@@ -1,4 +1,4 @@
-# Function names for GWRE64 (Star Wars: Rebel Strike, USA rev 0), identified by analysis.
+# Function names for GLRE64 (Star Wars: Rebel Strike, USA rev 0), identified by analysis.
 # <address> <name>
 # Dolphin OS (main.dol text), found by their instruction patterns and laid out as in Rogue Leader
 80022f20 OSDisableInterrupts     # mfmsr; clear EE; mtmsr; return the old EE

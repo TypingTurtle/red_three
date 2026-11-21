@@ -1,4 +1,4 @@
-// Game-side hooks for Rebel Strike (GWRE64). None yet: the game runs as it is, without the port
+// Game-side hooks for Rebel Strike (GLRE64). None yet: the game runs as it is, without the port
 // options Rogue Leader has at the source (cheats, passcode unlocks, cutscene skip, the game's
 // cameras widened). What the rest of the runtime asks of this file answers "not available".
 #include "runtime.h"
