@@ -25,7 +25,12 @@ bool cinematicSkip() { return false; }
 // 0x7F5BC93C, which builds its own projection from it - ViewportAspect answers the display's
 // aspect: the game renders and culls for it, and Aurora, told that projection is already wide,
 // leaves it alone. A letterboxed frame (cinematics: 304 lines) keeps the game's own, which
-// Aurora opens as before. R2_GAME_CULLING=1 keeps the game's own everywhere.
+// Aurora opens as before.
+// Off unless R2_WIDE_CULLING=1: with the wider volume the game crashed in the first mission frame
+// ("invalid alpha comp 16711935" from its display-list drawing, 0x80008EB8 < 0x7F3B021C): most
+// likely one of its fixed-size per-frame buffers overflowing with the extra objects, as Rogue
+// Leader's terrain tables did (hle_game_gswe64.cpp). Until that buffer is found and enlarged the
+// game keeps its own 4:3 volumes and Aurora widens the picture alone.
 static std::atomic<float> s_displayAspect{4.f / 3.f};
 
 void setGameAspect(double aspect) {
@@ -41,7 +46,7 @@ void hle_ViewportAspect(Ctx& c) {
     const u32 camera = c.r[31];  // (the camera update keeps its camera there; preserved by the call)
     f_7F3AF42C_orig(c);
     if (lr != kCameraUpdateRet && lr != kSceneCameraRet) return;
-    static const bool gameCulling = envFlag("R2_GAME_CULLING");
+    static const bool gameCulling = !envFlag("R2_WIDE_CULLING");
     const double display = s_displayAspect.load(std::memory_order_relaxed);
     const double aspect = c.f[1];
     const u32 lines = viXfbLines();
