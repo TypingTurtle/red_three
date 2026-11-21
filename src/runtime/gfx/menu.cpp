@@ -2220,7 +2220,7 @@ void pageControls() {
     {
         settings::Settings& st = settings::get();
         if (enumRow("Player 2", st.player2, player2Label,
-                    "Who plays as player 2 (the GameCube's port 2), for the cooperative and versus modes. Next controller: "
+                    "Who plays as player 2 (the GameCube's port 2), for the cooperative and versus modes. Next controller (the default): "
                     "the next controller connected that player 1 is not using. Keyboard: the keyboard becomes player 2 and "
                     "player 1 is the controller alone. Off: one player."))
             s_changed = true;

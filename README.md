@@ -90,9 +90,9 @@ Settings are in the launcher and in the in-game menu (F1).
   Controls page.
 - **Keyboard:** WASD or the arrow keys fly, Space is A, Left Shift is B, E is X, Q is Y, R is Z,
   1 and 2 are the L and R triggers, Enter is Start, T/F/G/H are the D-pad and I/J/K/L the C-stick.
-- **Co-op and versus:** Controls → Multiplayer → Player 2. "Next controller" gives player 2 to a
-  second controller. "Keyboard" gives player 2 the keyboard, so one controller and a keyboard is
-  enough for two players.
+- **Co-op and versus:** plug in a second controller and it plays player 2. To use the keyboard
+  for player 2 instead, set Controls → Multiplayer → Player 2 to "Keyboard"; one controller and
+  a keyboard is then enough for two players.
 - **Graphics:** internal resolution, anti-aliasing and anisotropic filtering are on the Display
   page. HD texture packs in Dolphin's format load from the Mods page.
 - **Keys:** F1 menu, F11 or Alt+Enter fullscreen, F5 save state, F8 load state, F6/F7 change

@@ -109,7 +109,7 @@ struct Settings {
     // besides Red Two's own textures folder: e.g. a pack unpacked in ~/Downloads. Empty: none.
     std::string texturesFolder;
     // controls
-    Player2 player2 = Player2::Off;
+    Player2 player2 = Player2::Controller;  // a second controller plays player 2 as soon as it is connected
     ButtonPrompts buttonPrompts = ButtonPrompts::Auto;  // the game's on-screen button prompts (gfx/button_icons.cpp)
     // Controller sticks (input.cpp shapeStick): a round deadzone in % of the stick's travel that
     // the output rescales from (both sticks), and the control stick's sensitivity in % (output =
