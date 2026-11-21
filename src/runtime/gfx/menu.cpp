@@ -2952,8 +2952,11 @@ void menuImGuiInit(const void*) {
     applyStyle();
 }
 
+void applyRenderScale();  // (below: "Window size" follows the window)
+
 void menuEvent(const void* p) {
     const SDL_Event& e = *static_cast<const SDL_Event*>(p);
+    if (e.type == SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED) applyRenderScale();
     if (rebindingNow()) return;  // rebinding takes these
     if (s_launcher) {  // no opening or closing: Esc only leaves the folder browser / the disc page
         if (e.type == SDL_EVENT_KEY_DOWN && !e.key.repeat && e.key.key == SDLK_ESCAPE && !s_textEditing) menuStepBack();
@@ -3025,9 +3028,31 @@ int uberShaderMode() {
     return uberEnv ? atoi(uberEnv) : settings::get().ubershaders ? 1 : 0;
 }
 
+// "Window size" renders at the whole multiple of the GameCube's 480 lines nearest the window's
+// height (at least 1), and the picture is scaled to the window from there. At a fractional
+// scale (2149x1612: 3.36) the off-screen passes the game copies into textures came out a pixel
+// short at their edges: Rebel Strike's water ripple map, tiled across the water, showed a line
+// along every tile's edge.
+float windowRenderScale() {
+    int w = 0, h = 0;
+    if (SDL_Window* win = aurora_get_window()) SDL_GetWindowSizeInPixels(win, &w, &h);
+    if (h <= 0) return 0.f;  // (no window yet: Aurora's own window-size scale)
+    return float(std::max(1, int(std::lround(float(h) / 480.f))));
+}
+
+void applyRenderScale() {
+    const settings::Settings& s = settings::get();
+    const float scale = s.resolution == settings::Resolution::Window ? windowRenderScale() : settings::resolutionScale(s.resolution);
+    static float applied = -1.f;
+    if (scale == applied) return;
+    applied = scale;
+    VISetFrameBufferScale(scale);
+    logf("gfx", "render scale %g (%s)", scale, settings::resolutionName(s.resolution));
+}
+
 void applyDisplaySettings() {
     const settings::Settings& s = settings::get();
-    VISetFrameBufferScale(settings::resolutionScale(s.resolution));
+    applyRenderScale();
     applyDisplayAspect();
     AuroraSetUberShaders(uberShaderMode());
     AuroraSetForcedAnisotropy(u16(s.anisotropy));  // (Aurora patch 0030)
