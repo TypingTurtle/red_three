@@ -31,14 +31,24 @@ Get-ChildItem $BuildDir -Filter *.dll | Copy-Item -Destination $stage
 # "MSVCP140.dll was not found", and one with an older runtime (before 14.40, VS 2022 17.10)
 # crashed silently at the first std::mutex lock (issue #14: "it doesn't display anything").
 $vswhere = Join-Path ${env:ProgramFiles(x86)} "Microsoft Visual Studio\Installer\vswhere.exe"
-$vs = & $vswhere -latest -products * -property installationPath
-$redist = Get-ChildItem (Join-Path $vs "VC\Redist\MSVC") -Directory | Where-Object { $_.Name -match '^14\.' } |
-    Sort-Object { [version]$_.Name } | Select-Object -Last 1
-$crt = Join-Path $redist.FullName "x64\Microsoft.VC143.CRT"
+# the newest runtime of any Visual Studio here (a newer runtime runs programs built with an older
+# toolset; not an older one): its folder is Microsoft.VC143.CRT, Microsoft.VC145.CRT, ...
+$crt = $null; $best = $null
+foreach ($vs in (& $vswhere -all -products * -property installationPath)) {
+    $base = Join-Path $vs "VC\Redist\MSVC"
+    if (-not (Test-Path $base)) { continue }
+    foreach ($r in Get-ChildItem $base -Directory | Where-Object { $_.Name -match '^14\.' }) {
+        $c = Get-ChildItem (Join-Path $r.FullName "x64") -Directory -Filter "Microsoft.VC*.CRT" -ErrorAction SilentlyContinue |
+            Where-Object { Test-Path (Join-Path $_.FullName "msvcp140.dll") } | Select-Object -First 1
+        if ($c -and (-not $best -or [version]$r.Name -gt [version]$best.Name)) { $best = $r; $crt = $c.FullName }
+    }
+}
+if (-not $crt) { throw "no Visual C++ runtime (VC\Redist\MSVC\14.*\x64\Microsoft.VC*.CRT) in any Visual Studio" }
+$redist = $best
 foreach ($dll in "msvcp140.dll", "msvcp140_atomic_wait.dll", "vcruntime140.dll", "vcruntime140_1.dll") {
     Copy-Item (Join-Path $crt $dll) $stage
 }
-"Visual C++ runtime {0}" -f $redist.Name
+"Visual C++ runtime {0} ({1})" -f $redist.Name, (Split-Path -Leaf $crt)
 
 # Portable: settings, the memory card, save states, logs, the shader cache, texture packs and
 # codes go into user\ next to red_two.exe (mods.cpp portableDir), so the folder can live anywhere
