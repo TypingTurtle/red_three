@@ -19,3 +19,7 @@
                                  # salLogicIsWaiting r13-24772 / salLogicActive r13-24776 (game.h)
 7f65aa0c salCtrlDsp              # salBuildCommandList + mails 0xBABE0000|size and the list
 7f664124 salBuildCommandList     # nsDelay (r4) < 200 -> base cycles, else more (10430 base, as Rogue Leader)
+# Cameras (found for widescreen: issue #1)
+7f3af42c ViewportAspect          # (viewport r3) -> f1: the viewport's width * the screen's pixel aspect (render mode +4) / its height; 4:3 for a 512x448 mission viewport. Callers: the camera update 0x7F3AA460 (0x7F3AA47C), 0x7F5BC93C (straight to MTXPerspective), 0x7F59EB10 (twice; stores it in small data)
+7f3aa460 CameraUpdate            # (camera r3, viewport r4): aspect +0x90 = ViewportAspect * factor +0x8C; fov +0x64/+0x68 -> tangents +0x6C/+0x70; projection at +0x244 (MTXPerspective); culling volume 0x7F3AA824 (side planes from the tangents)
+7f20b5f0 MTXPerspective          # (out r3, tan(fovY/2) f1, aspect f2, near f3, far f4): the SDK's, from the tangent

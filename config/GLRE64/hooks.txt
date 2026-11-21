@@ -33,3 +33,6 @@ hle     salBuildCommandList
 # and jumps to DMA-wait helpers whose blr continues the loop there: a label, not a function
 # (analysis.cpp: lr labels)
 noentry 8003c194
+
+# Widescreen: the game's cameras render and cull for the display's aspect (hle_game_glre64.cpp)
+hle     ViewportAspect
