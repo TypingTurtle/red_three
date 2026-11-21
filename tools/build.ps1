@@ -69,7 +69,10 @@ if ($Configure -or -not (Test-Path "$build\build.ninja")) {
     $ignore = "C:/msys64/ucrt64;C:/msys64/mingw64;C:/msys64/clang64;C:/msys64/usr"
     $args = @("-S", $root, "-B", $build, "-G", "Ninja", "-DCMAKE_BUILD_TYPE=$Config",
         "-DCMAKE_C_COMPILER=$ClangCl", "-DCMAKE_CXX_COMPILER=$ClangCl", "-DCMAKE_MAKE_PROGRAM=$ninja",
-        "-DCMAKE_IGNORE_PREFIX_PATH=$ignore", "-DCMAKE_DISABLE_FIND_PACKAGE_PkgConfig=ON")
+        "-DCMAKE_IGNORE_PREFIX_PATH=$ignore", "-DCMAKE_DISABLE_FIND_PACKAGE_PkgConfig=ON",
+        # (CMake 3.30, as Build Tools 2022 ships it: FindSQLite3 calls pkg_check_modules even with
+        # PkgConfig disabled and fails; Aurora fetches its own SQLite instead)
+        "-DCMAKE_DISABLE_FIND_PACKAGE_SQLite3=ON")
     if (Test-Path $lld) { $args += "-DCMAKE_LINKER=$lld" }
     if ($Disc) { $args += "-DR2_DOL=$Disc" }
     $args += $CMakeArgs
