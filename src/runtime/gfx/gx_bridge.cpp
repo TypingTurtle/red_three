@@ -896,9 +896,16 @@ struct AxisMap {
     float origin, scale;  // the viewport sent (Aurora's XF units)
     float a, b;           // ndc' = a ndc + b
 };
+// R2_BOXBIAS=340: the box offset read as before (2 * field - 340, Aurora's scissor bias -340) and
+// viewports sent unchanged with the offset in the projection only - for comparing.
+bool legacyBoxBias() {
+    static const bool on = getenv("R2_BOXBIAS") && atoi(getenv("R2_BOXBIAS")) == 340;
+    return on;
+}
 AxisMap axisMap(int axis) {
     const float s = asFloat(s_xfVp[axis]), o = asFloat(s_xfVp[3 + axis]);
     const s32 off = axis ? s_boxOffY : s_boxOffX;
+    if (legacyBoxBias()) return {o, s, 1.f, off && s != 0.f ? -float(off) / s : 0.f};
     const float efbCenter = o - kGameVpBias;
     if (!off || s == 0.f) return {efbCenter + kAuroraVpBias, s, 1.f, 0.f};
     const float size = axis ? 528.f : 640.f;
@@ -1785,12 +1792,13 @@ void onCommand(const u8* p, u32 len) {
             // projection (axisMap). This used 340 once, which put everything 2 pixels up and left
             // of its viewport: its last two rows and columns went undrawn (Rebel Strike's water
             // ripple map, a line along every water tile's edge).
-            const s32 offX = s32(2 * (v & 0x3FF)) - 342, offY = s32(2 * ((v >> 10) & 0x3FF)) - 342;
+            const s32 bias = legacyBoxBias() ? 340 : 342;
+            const s32 offX = s32(2 * (v & 0x3FF)) - bias, offY = s32(2 * ((v >> 10) & 0x3FF)) - bias;
             if (offX != s_boxOffX || offY != s_boxOffY || !s_boxBiasSent) {
                 s_boxOffX = offX;
                 s_boxOffY = offY;
                 s_boxBiasSent = true;
-                const u32 f = (0u - 171u) & 0x3FF;
+                const u32 f = (0u - (legacyBoxBias() ? 170u : 171u)) & 0x3FF;
                 bpFull(0x59000000u | (f << 10) | f);
                 sendScissor();
                 if (s_vpKnown) sendViewport();
