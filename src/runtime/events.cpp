@@ -123,8 +123,12 @@ void timerThread() {
         if (e <= now) {
             raisePending();
             g_timerFlags++;
-            // the guest runs the event at its next safepoint (and reschedules); check again soon
-            sleepUs(200, false);
+            // the guest runs the event at its next safepoint (and reschedules); check again soon,
+            // or as soon as it schedules something earlier. (Not wakeable, this sleep - about
+            // half a millisecond on Windows - came after every event: Rebel Strike streams its
+            // texture pool in thousands of 4 KiB disc reads, each waiting for the last one's
+            // completion event, and the picture held still for half a second at a time.)
+            sleepUs(200, true);
             continue;
         }
         if (e == ~0ull) {
