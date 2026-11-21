@@ -2,7 +2,8 @@
 # Packs a Linux build (tools/build_linux.sh) into an AppImage for the Steam Deck and other
 # desktops:
 #   tools/make_appimage.sh --runtime <runtime-x86_64> [--build-dir build/linux] [--icon <png>] [--out <file>]
-# --icon: a 256x256 PNG (Red Two's own: res/red_two.png scaled down).
+# --icon: a 256x256 PNG (default: the game's own, res/red_two.png or res/red_three.png scaled down).
+# Which port it packs (Red Two or Red Three) follows the build folder's R2_GAME.
 # --runtime: the AppImage type 2 runtime (github.com/AppImage/type2-runtime, release
 # "continuous", runtime-x86_64); the squashfs image goes after it. Needs mksquashfs and patchelf.
 # The AppImage holds the recompiled game: it is for the person whose disc it was built from.
@@ -22,8 +23,24 @@ while [ $# -gt 0 ]; do
     esac
 done
 [ -n "$runtime" ] || { echo "--runtime <runtime-x86_64> is required" >&2; exit 2; }
-[ -n "$out" ] || out="$build/RedTwo-x86_64.AppImage"
-exe="$build/red_two"
+game="$(sed -n 's/^R2_GAME:[A-Z]*=//p' "$build/CMakeCache.txt" 2>/dev/null)"
+if [ "$game" = "GLRE64" ]; then
+    bin=red_three; appid=red-three; appname="Red Three"; appimage=RedThree
+    title="Star Wars: Rogue Squadron III"; longtitle="Star Wars: Rogue Squadron III - Rebel Strike"
+    disc="Rebel Strike disc image (GLRE64"; deficon="$root/res/red_three.png"
+else
+    bin=red_two; appid=red-two; appname="Red Two"; appimage=RedTwo
+    title="Star Wars: Rogue Squadron II"; longtitle="Star Wars: Rogue Squadron II - Rogue Leader"
+    disc="Rogue Leader disc image (GSWE64"; deficon="$root/res/red_two.png"
+fi
+[ -n "$out" ] || out="$build/$appimage-x86_64.AppImage"
+if [ -z "$icon" ] && [ -f "$deficon" ]; then
+    icon="$build/$appid-256.png"
+    python3 -c 'import sys
+from PIL import Image
+Image.open(sys.argv[1]).convert("RGBA").resize((256, 256), Image.LANCZOS).save(sys.argv[2])' "$deficon" "$icon"
+fi
+exe="$build/$bin"
 [ -x "$exe" ] || { echo "no $exe: build first (tools/build_linux.sh)" >&2; exit 1; }
 
 app="$build/AppDir"
@@ -31,8 +48,8 @@ rm -rf "$app"
 mkdir -p "$app/usr/bin" "$app/usr/lib" "$app/usr/share/red-two" "$app/usr/share/applications" \
     "$app/usr/share/icons/hicolor/256x256/apps"
 # the program, without its DWARF (the dynamic symbols stay: crash call stacks)
-objcopy --strip-debug "$exe" "$app/usr/bin/red_two"
-patchelf --set-rpath '$ORIGIN/../lib' "$app/usr/bin/red_two"
+objcopy --strip-debug "$exe" "$app/usr/bin/$bin"
+patchelf --set-rpath '$ORIGIN/../lib' "$app/usr/bin/$bin"
 
 # the libraries built here (SDL3, Dawn, ... when shared) and the system's that a desktop may lack
 # or have in another version (libpng, FreeType and its compressors); not the C library, libm,
@@ -75,31 +92,31 @@ for f in /usr/share/doc/libpng16-16*/copyright /usr/share/doc/libfreetype6/copyr
         "$(printf '=%.0s' $(seq 78))" "$(cat "$f")" >> "$app/usr/share/red-two/THIRD_PARTY_NOTICES.txt"
 done
 
-cat > "$app/AppRun" <<'EOF'
+cat > "$app/AppRun" <<EOF
 #!/bin/sh
-# Red Two: your own Rogue Leader disc image (GSWE64 .iso / .rvz) next to this AppImage, in
-# ~/Emulation/roms/gc, in ~/.local/share/Red Two/, or given with --disc <path>.
-HERE="$(dirname "$(readlink -f "$0")")"
-exec "$HERE/usr/bin/red_two" "$@"
+# $appname: your own $disc .iso / .rvz) next to this AppImage, in
+# ~/Emulation/roms/gc, in ~/.local/share/$appname/, or given with --disc <path>.
+HERE="\$(dirname "\$(readlink -f "\$0")")"
+exec "\$HERE/usr/bin/$bin" "\$@"
 EOF
 chmod +x "$app/AppRun"
 
-cat > "$app/usr/share/applications/red-two.desktop" <<'EOF'
+cat > "$app/usr/share/applications/$appid.desktop" <<EOF
 [Desktop Entry]
 Type=Application
-Name=Red Two
-GenericName=Star Wars: Rogue Squadron II
-Comment=Star Wars: Rogue Squadron II - Rogue Leader, recompiled for PC (your own disc image)
-Exec=red_two
-Icon=red-two
+Name=$appname
+GenericName=$title
+Comment=$longtitle, recompiled for PC (your own disc image)
+Exec=$bin
+Icon=$appid
 Categories=Game;ActionGame;
 Terminal=false
 EOF
-cp "$app/usr/share/applications/red-two.desktop" "$app/red-two.desktop"
+cp "$app/usr/share/applications/$appid.desktop" "$app/$appid.desktop"
 if [ -n "$icon" ]; then
-    cp "$icon" "$app/usr/share/icons/hicolor/256x256/apps/red-two.png"
-    cp "$icon" "$app/red-two.png"
-    ln -s red-two.png "$app/.DirIcon"
+    cp "$icon" "$app/usr/share/icons/hicolor/256x256/apps/$appid.png"
+    cp "$icon" "$app/$appid.png"
+    ln -s "$appid.png" "$app/.DirIcon"
 else
     echo "note: no --icon: the AppImage has no icon" >&2
 fi

@@ -83,6 +83,27 @@ The code a build generates from your disc is the game's code. Don't share it or 
 
 Without `-DR2_GAME=GLRE64` you get Red Two for Rogue Leader instead.
 
+### Steam Deck
+
+The Deck runs the Linux build, packed into a single AppImage file. Build it on a Linux PC, or on
+Windows inside WSL2 with Ubuntu 24.04 (the Deck needs SteamOS 3.6 or newer):
+
+1. Do the Linux build above.
+2. Install `squashfs-tools` and `patchelf`, and download the AppImage runtime
+   (`runtime-x86_64` from [AppImage/type2-runtime](https://github.com/AppImage/type2-runtime/releases/tag/continuous)).
+3. Pack it:
+
+   ```bash
+   tools/make_appimage.sh --runtime runtime-x86_64 --build-dir build/rs
+   ```
+
+   This makes `build/rs/RedThree-x86_64.AppImage`.
+4. Copy the AppImage and your disc image into the same folder on the Deck (or the disc image into
+   `~/Emulation/roms/gc`), make the AppImage executable, and add it to Steam as a non-Steam game.
+
+Settings, saves and logs are in `~/.local/share/Red Three/` on the Deck. The AppImage contains the
+game's code from your disc, so it's for your own use only.
+
 ## Playing
 
 Settings are in the launcher and in the in-game menu (F1).

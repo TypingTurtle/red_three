@@ -2005,8 +2005,14 @@ bool init(int argc, char** argv, std::string& disc, const std::string& discNote)
     cfg.emulateXfb = s_xfb;
     cfg.windowWidth = 1280;
     cfg.windowHeight = 960;
-    // (Linux desktops match the window to red-two.desktop - the AppImage's - by this id)
-    SDL_SetHint(SDL_HINT_APP_ID, "red-two");
+    // (Linux desktops match the window to the AppImage's .desktop file by this id: red-two,
+    // red-three - the program's name with dashes)
+    {
+        static std::string appId = rt::game::kGame.exe;
+        for (char& c : appId)
+            if (c == '_') c = '-';
+        SDL_SetHint(SDL_HINT_APP_ID, appId.c_str());
+    }
     // a 4:3 window sized to the screen: smaller screens (the Steam Deck's 1280x800 desktop) get
     // one that fits their usable area, larger ones (a 4K monitor) one about 80% of its height
     // (the menus scale with the window). Usable bounds are in the same units as the window size.
