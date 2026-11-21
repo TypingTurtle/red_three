@@ -41,7 +41,8 @@ struct Profile {
 // stored zlib-compressed in main.dol (layout.txt: embedded_zlib); the pager pointer is the one
 // its DSI entry 0x8003D190 calls (lis 0x800A / lwz 0x1C28).
 inline constexpr Profile kGame = {
-    "GLRE64", "GLR", "Rebel Strike", "Star Wars: Rogue Squadron III - Rebel Strike", "Red Three", "red_three", nullptr, 0,
+    "GLRE64", "GLR", "Rebel Strike", "Star Wars: Rogue Squadron III - Rebel Strike", "Red Three", "red_three",
+    "TypingTurtle/red_three", 0,
     0x800A1C28,
     0, 0, 0, 0,
     // MusyX (in the VM text): salCallback 0x7F65A6E0, r13 = 0x800A88A0. The flags come before

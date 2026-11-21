@@ -80,7 +80,11 @@ std::string text(const fs::path& p) {
     return std::string(s.begin(), s.end());
 }
 
-std::string userAgent() { return std::string("RedTwo/") + version(); }
+std::string userAgent() {
+    std::string a = game::kGame.app;
+    a.erase(std::remove(a.begin(), a.end(), ' '), a.end());  // "RedTwo", "RedThree"
+    return a + "/" + version();
+}
 
 // "v1.2.3-rc" -> {1, 2, 3}
 std::vector<int> parseVersion(std::string v) {
@@ -286,7 +290,7 @@ bool listZip(FILE* f, std::vector<Entry>& out, std::string& err) {
             return false;
         }
         if (en.method != 0 && en.method != 8) {
-            err = "the zip uses a compression Red Two cannot unpack";
+            err = std::string("the zip uses a compression ") + game::kGame.app + " cannot unpack";
             return false;
         }
         out.push_back(std::move(en));
@@ -533,10 +537,10 @@ void installWorker() {
     FILE* f = openWrite(part);
     if (!f) {
 #ifdef _WIN32
-        fail("Red Two cannot write to its folder (" + text(dir) +
-             "). Download the update from the release page, or move Red Two to a folder you can write to.");
+        fail(std::string(game::kGame.app) + " cannot write to its folder (" + text(dir) +
+             "). Download the update from the release page, or move " + game::kGame.app + " to a folder you can write to.");
 #else
-        fail("Red Two cannot write next to its AppImage (" + text(dest.parent_path()) +
+        fail(std::string(game::kGame.app) + " cannot write next to its AppImage (" + text(dest.parent_path()) +
              "). Download the update from the release page.");
 #endif
         return;
@@ -667,7 +671,7 @@ void install() {
 
 std::string restartProgram() {
 #ifdef _WIN32
-    return text(exeDir() / "red_two.exe");
+    return text(exeDir() / (std::string(game::kGame.exe) + ".exe"));
 #else
     const char* ai = getenv("APPIMAGE");
     return ai ? ai : "";
