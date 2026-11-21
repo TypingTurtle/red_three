@@ -292,7 +292,17 @@ void diStart() {
     const u32 cmd0 = di[DICMD0];
     const u32 cmd = cmd0 >> 24;
     s_diOp = {true, cmd0, di[DICMD1], di[DILEN], di[DIMAR]};
-    u64 latencyTb = kTbClock / 2000;  // 0.5 ms command overhead
+    // Command overhead: the drive's 0.5 ms, or 0.05 ms with fast loading. Rebel Strike streams its
+    // texture pool in thousands of 4 KiB reads (1087 in the half second the transport left Relics
+    // of Geonosis, 5600 loading the mission): at 0.5 ms each the overhead alone held the picture
+    // still for 0.5 s / 2.8 s, the transfer itself (1.4 MiB at 200 MB/s) took 7 ms.
+    // R2_DVD_OVERHEAD=<microseconds> sets it.
+    static const double forcedOverhead = [] {
+        const char* v = getenv("R2_DVD_OVERHEAD");
+        return v ? atof(v) : -1.0;
+    }();
+    const double overheadUs = forcedOverhead >= 0 ? forcedOverhead : settings::get().fastDisc ? 50.0 : 500.0;
+    u64 latencyTb = u64(overheadUs * double(kTbClock) / 1e6);
     switch (cmd) {
     case 0xA8:
         if ((cmd0 & 0xC0) == 0x40) s_diOp.len = 0x20;  // read disc ID
