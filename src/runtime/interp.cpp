@@ -5,6 +5,10 @@
 #include <cmath>
 
 #include "runtime.h"
+#include "mods.h"
+
+#include <cstdio>
+#include <set>
 
 namespace rt {
 
@@ -410,6 +414,28 @@ void call(Ctx& c, u32 target) {
 
 u64 g_interpCalls = 0;
 
+// Code the recompiler never saw (loaded at run time): the first time code in a new 64 KB block
+// of main memory is interpreted, the 256 KB around it are saved to the user folder as
+// interp_<addr>.bin, so the code can be traced to where it was loaded from (up to 8 blocks).
+static void snapshotInterpreted(Ctx& c, u32 addr) {
+    static std::set<u32> blocks;
+    const u32 phys = addr & 0x01FFFFFFu, block = phys >> 16;
+    if (blocks.size() >= 8 || !blocks.insert(block).second || phys >= kMem1Size) return;
+    const u32 lo = phys >= 0x20000 ? (phys & ~0xFFFFu) - 0x20000 : 0;
+    const u32 len = std::min<u32>(0x40000, kMem1Size - lo);
+    const u8* mem = physPtr(lo, len);
+    const std::string dir = mods::userDir();
+    if (!mem || dir.empty()) return;
+    char name[64];
+    snprintf(name, sizeof name, "interp_%08X.bin", addr);
+    if (FILE* f = fopen((dir + name).c_str(), "wb")) {
+        fwrite(mem, 1, len, f);
+        fclose(f);
+        logf("interp", "saved %s: %u bytes from %08X (r2 %08X, r13 %08X, lr %08X)", name, len, lo | 0x80000000u, u32(c.r[2]),
+             u32(c.r[13]), c.lr);
+    }
+}
+
 void interpret(Ctx& c, u32 addr) {
     static bool logged = false;
     static const bool interpLog = envFlag("R2_INTERP_LOG");
@@ -417,6 +443,7 @@ void interpret(Ctx& c, u32 addr) {
         logf("interp", "interpreting code at %08X (no recompiled function; lr %08X)", addr, c.lr);
         logged = true;
     }
+    snapshotInterpreted(c, addr);
     g_interpCalls++;
     run(c, addr);
 }
