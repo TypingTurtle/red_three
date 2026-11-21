@@ -2,7 +2,8 @@
 # linker) and compiles with clang-cl.
 #   powershell -ExecutionPolicy Bypass -File tools\build.ps1 [-Disc <game.rvz|.iso>] [-Configure] [-Target red_two]
 # -Disc: the user's disc image (or main.dol) to recompile; CMake remembers it (R2_DOL).
-# -BuildDir: another build tree (default build\windows, the one the player runs); -CMakeArgs:
+# -BuildDir: another build tree (default build\windows, the one the player runs); -VsPath: the
+# Visual Studio installation to use (default: the newest); -CMakeArgs:
 # extra -D options when that tree is configured.
 param(
     [string]$Disc = "",
@@ -11,14 +12,20 @@ param(
     [string]$Config = "RelWithDebInfo",
     [string]$ClangCl = "",
     [string]$BuildDir = "",
-    [string[]]$CMakeArgs = @()
+    [string[]]$CMakeArgs = @(),
+    [string]$VsPath = ""
 )
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 $build = if ($BuildDir) { $BuildDir } else { Join-Path $root "build\windows" }
 
 $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
-$vsPath = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+# -VsPath: which Visual Studio installation to use (default: the newest with the C++ tools).
+# With several installed, the newest one's C++ library may require a newer clang-cl than any
+# installed; pass the installation whose own "C++ Clang tools" match, e.g. Build Tools 2022.
+if (-not $VsPath) {
+    $VsPath = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+}
 if (-not $vsPath) { throw "Visual Studio C++ build tools not found" }
 cmd /c "`"$vsPath\VC\Auxiliary\Build\vcvars64.bat`" >nul && set" | ForEach-Object {
     if ($_ -match '^([^=]+)=(.*)$') { Set-Item -Path "env:$($Matches[1])" -Value $Matches[2] }
