@@ -10,10 +10,18 @@
 #include <fstream>
 #include <string>
 
+#include <exception>
+
+#ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN
+#define NOMINMAX
+#include <windows.h>
+#endif
+
 #include "analysis.h"
 #include "emit.h"
 
-int main(int argc, char** argv) {
+static int run(int argc, char** argv) {
     if (argc < 4) {
         fprintf(stderr, "usage: r2recomp <main.dol> <config dir> <out dir> [--files N]\n");
         return 2;
@@ -28,6 +36,7 @@ int main(int argc, char** argv) {
         fprintf(stderr, "cannot read %s\n", argv[1]);
         return 1;
     }
+    fprintf(stderr, "r2recomp: read %s\n", argv[1]);
     Config cfg;
     if (!cfg.load(argv[2])) return 1;
     for (uint32_t at : cfg.embedded) {
@@ -72,4 +81,38 @@ int main(int argc, char** argv) {
            an.funcs.size(), insns, tables, an.notes.size(), secs);
     for (auto& [s, end] : an.codeLimit) printf("  code %08X-%08X\n", s, end);
     return 0;
+}
+
+// A failure must say so in the build log: output is unbuffered (a crash would lose buffered
+// lines), an exception is reported, and on Windows a crash prints its code and address instead
+// of ending the process silently.
+#ifdef _WIN32
+static LONG WINAPI reportCrash(EXCEPTION_POINTERS* e) {
+    fprintf(stderr, "r2recomp: crashed with exception 0x%08lX at %p\n", e->ExceptionRecord->ExceptionCode,
+            e->ExceptionRecord->ExceptionAddress);
+    if (e->ExceptionRecord->ExceptionCode == EXCEPTION_STACK_OVERFLOW) fprintf(stderr, "r2recomp: (stack overflow)\n");
+    fflush(stderr);
+    return EXCEPTION_EXECUTE_HANDLER;
+}
+#endif
+
+int main(int argc, char** argv) {
+    setvbuf(stdout, nullptr, _IONBF, 0);
+    setvbuf(stderr, nullptr, _IONBF, 0);
+#ifdef _WIN32
+    SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX);
+    SetUnhandledExceptionFilter(reportCrash);
+    ULONG guarantee = 64 * 1024;  // room to report a stack overflow
+    SetThreadStackGuarantee(&guarantee);
+#endif
+    try {
+        const int rc = run(argc, argv);
+        if (rc) fprintf(stderr, "r2recomp: failed (exit code %d)\n", rc);
+        return rc;
+    } catch (const std::exception& e) {
+        fprintf(stderr, "r2recomp: error: %s\n", e.what());
+    } catch (...) {
+        fprintf(stderr, "r2recomp: error: unknown exception\n");
+    }
+    return 3;
 }
