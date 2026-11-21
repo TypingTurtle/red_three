@@ -16,7 +16,10 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdio>
 #include <cstring>
+#include <string>
+#include <unordered_map>
 
 #include "../runtime.h"
 
@@ -246,6 +249,52 @@ struct BusMix {
     s32* dst;
 };
 
+// R2_VOICE_LOG=1: once a second, each voice that sounded (its output after the envelope): how
+// loud, how noisy (the share of samples where the sign flips: speech and music stay low, noise
+// is near 0.5) and its parameter block - for finding a voice that plays garbage.
+struct VoiceStats {
+    double sumSq = 0;
+    u32 n = 0, flips = 0;
+    s32 peak = 0, prev = 0;
+};
+std::unordered_map<u32, VoiceStats> s_voiceStats;
+bool voiceLogOn() {
+    static const bool on = envFlag("R2_VOICE_LOG");
+    return on;
+}
+
+void voiceLogFlush() {
+    static u64 lastList = 0;
+    if (s_lists - lastList < 200) return;  // 200 lists: one second
+    lastList = s_lists;
+    static u32 lines = 0;
+    for (auto& [addr, st] : s_voiceStats) {
+        if (!st.n || lines >= 4000) continue;
+        const double rms = std::sqrt(st.sumSq / st.n), zcr = double(st.flips) / st.n;
+        if (rms < 200) continue;
+        const u8* p = mem(addr, PB_WORDS * 2);
+        if (!p) continue;
+        auto w = [&](int i) { return be16(p + 2 * i); };
+        lines++;
+        logf("voice", "PB %08X: rms %6.0f peak %6d sign flips %.2f%s | fmt %02X src %u ratio %08X cur %08X loop %08X end %08X "
+                      "loopflag %u looptype %u ps %04X gain %04X vol %04X mixer %04X",
+             addr, rms, st.peak, zcr, zcr > 0.3 ? " NOISY" : "", w(PB_FORMAT), w(PB_SRC_SELECT),
+             u32(w(PB_RATIO_HI)) << 16 | w(PB_RATIO_LO), u32(w(PB_CUR_HI)) << 16 | w(PB_CUR_LO),
+             u32(w(PB_LOOP_HI)) << 16 | w(PB_LOOP_LO), u32(w(PB_END_HI)) << 16 | w(PB_END_LO), w(PB_LOOP_FLAG),
+             w(PB_LOOP_TYPE), w(PB_PS), w(PB_GAIN), w(PB_VE_VOL), w(PB_MIXER_CTRL));
+        if (zcr > 0.3 && lines < 4000) {  // the whole block, to compare with a clean voice
+            std::string words;
+            char b[8];
+            for (int i = 0; i < PB_WORDS; i++) {
+                snprintf(b, sizeof b, "%04X ", w(i));
+                words += b;
+            }
+            logf("voice", "  PB words: %s", words.c_str());
+        }
+    }
+    s_voiceStats.clear();
+}
+
 void processVoice(u32 pbAddr) {
     u8* p = mem(pbAddr, PB_WORDS * 2);
     if (!p) return;
@@ -289,6 +338,16 @@ void processVoice(u32 pbAddr) {
         }
         v.w[PB_VE_VOL] = u16(vol);
         last = smp[kSub - 1];
+        if (voiceLogOn()) {
+            VoiceStats& st = s_voiceStats[pbAddr];
+            for (int i = 0; i < kSub; i++) {
+                st.sumSq += double(smp[i]) * smp[i];
+                st.peak = std::max(st.peak, std::abs(smp[i]));
+                if ((smp[i] < 0) != (st.prev < 0) && std::abs(smp[i] - st.prev) > 64) st.flips++;
+                st.prev = smp[i];
+            }
+            st.n += kSub;
+        }
         const int base = sf * kSub;
         // (7.1) how far back the voice sits, from its front and aux B (rear, in a DPL2 studio)
         // volumes: CalcBusDPL2 gives both 0.71 at the side, front 0 behind
@@ -346,6 +405,7 @@ void writeLRS(u32 addr, s32 (*src)[kN]) {
 
 void runList(u32 addr) {
     s_lists++;
+    if (voiceLogOn()) voiceLogFlush();
     s_listDpl2 = false;
     for (int guard = 0; guard < 100000; guard++) {
         const u8* p = mem(addr, 16);
