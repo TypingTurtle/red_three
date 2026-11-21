@@ -236,6 +236,13 @@ void viNoteFb(u32 hiOff) {
 
 
 void viWrite(u32 off, u16 v) {
+    // R2_VI_LOG=1: every VI register write that changes it (the first 3000), to see how the game
+    // lays out what the TV shows (split screens, frame buffer flips)
+    static const bool viLog = envFlag("R2_VI_LOG");
+    if (viLog && vi[(off & 0x7F) / 2] != v) {
+        static u32 lines = 0;
+        if (lines++ < 3000) logf("vi", "VI %02X: %04X -> %04X", off & 0x7F, vi[(off & 0x7F) / 2], v);
+    }
     vi[(off & 0x7F) / 2] = v;
     if (off >= 0x30 && off < 0x40) viUpdateIrq();
     // The 32-bit frame buffer registers arrive as two 16-bit writes (high, then low): take
