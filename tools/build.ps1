@@ -75,7 +75,9 @@ if ($Configure -or -not (Test-Path "$build\build.ninja")) {
         "-DCMAKE_DISABLE_FIND_PACKAGE_SQLite3=ON")
     if (Test-Path $lld) { $args += "-DCMAKE_LINKER=$lld" }
     if ($Disc) { $args += "-DR2_DOL=$Disc" }
-    $args += $CMakeArgs
+    # -CMakeArgs "-DA=1 -DB=2" arrives as one string when run with powershell -File: split it
+    # before each -D (a value may still contain spaces: -DR2_EXTRA_CODE=C:\My Games\rescode)
+    foreach ($a in $CMakeArgs) { $args += ($a.Trim() -split '\s+(?=-D)') }
     cmake @args
     if ($LASTEXITCODE) { throw "configure failed" }
 }
