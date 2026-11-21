@@ -881,25 +881,42 @@ void sendScissor() {
     bpFull(0x21000000u | (rt << 12) | bm);
 }
 
-// The box offset in each axis goes into the viewport itself where the moved viewport stays
-// inside the EFB, and into the projection otherwise. A shifted projection alone is clipped at
-// the viewport's edges: Rebel Strike's co-op ship select draws player 2's hangar into a
-// 224-line viewport at EFB rows 226-450 under a 226 offset - shifted up by the projection, all
-// of it fell outside that viewport, and the bottom half stayed black. A viewport that would
-// leave the EFB (the missions' full-height one, at the same offset) keeps the projection shift.
-bool viewportTakesOffset(int axis) {
+// The scissor box offset moves everything drawn by -offset in the EFB. Per axis, the bridge moves
+// the viewport (clamped to the EFB) and makes up the rest in the projection: ndc' = a ndc + b,
+// so every pixel lands where the hardware puts it and nothing in the EFB is clipped that the
+// hardware would draw. Moving the projection alone clips at the viewport's edges: Rebel
+// Strike's co-op ship select draws player 2's hangar into a 224-line viewport under a 226 offset
+// (all of it fell outside: the half stayed black), and its water's ripple map, drawn every frame
+// into a 256x256 viewport at the EFB's corner under the game's usual offset of 2, lost its last
+// two rows and columns - a line along every water tile's edge, where the map repeats.
+// Viewport origins: the game's (the SDK's GXSetViewport) are EFB + 342, Aurora reads them as
+// EFB + 340 (its own GXSetViewport writes that), so every viewport goes to Aurora 2 lower.
+constexpr float kGameVpBias = 342.f, kAuroraVpBias = 340.f;
+struct AxisMap {
+    float origin, scale;  // the viewport sent (Aurora's XF units)
+    float a, b;           // ndc' = a ndc + b
+};
+AxisMap axisMap(int axis) {
+    const float s = asFloat(s_xfVp[axis]), o = asFloat(s_xfVp[3 + axis]);
     const s32 off = axis ? s_boxOffY : s_boxOffX;
-    if (!off) return false;
-    const float scale = std::abs(asFloat(s_xfVp[axis])), origin = asFloat(s_xfVp[3 + axis]) - 342.f - float(off);
+    const float efbCenter = o - kGameVpBias;
+    if (!off || s == 0.f) return {efbCenter + kAuroraVpBias, s, 1.f, 0.f};
     const float size = axis ? 528.f : 640.f;
-    return scale > 0.f && origin - scale >= -0.5f && origin + scale <= size + 0.5f;
+    const float cm = efbCenter - float(off), half = std::abs(s);  // the moved viewport, EFB coordinates
+    const float lo = std::max(cm - half, 0.f), hi = std::min(cm + half, size);
+    if (hi - lo < 1.f) return {efbCenter + kAuroraVpBias, s, 1.f, -float(off) / s};  // none of it on the EFB
+    const float c2 = 0.5f * (lo + hi), s2 = std::copysign(0.5f * (hi - lo), s);
+    return {c2 + kAuroraVpBias, s2, s / s2, (cm - c2) / s2};
 }
 
 void sendViewport() {
     u32 vp[6];
     memcpy(vp, s_xfVp, sizeof vp);
-    if (viewportTakesOffset(0)) vp[3] = asBits(asFloat(vp[3]) - float(s_boxOffX));
-    if (viewportTakesOffset(1)) vp[4] = asBits(asFloat(vp[4]) - float(s_boxOffY));
+    for (int axis = 0; axis < 2; axis++) {
+        const AxisMap m = axisMap(axis);
+        vp[axis] = asBits(m.scale);
+        vp[3 + axis] = asBits(m.origin);
+    }
     fifo::write_u8(0x10);
     fifo::write_u32((5u << 16) | 0x101A);
     for (u32 w : vp) fifo::write_u32(w);
@@ -920,12 +937,16 @@ void sendProjection(float shiftX = 0.f, bool mirror = false, float axis = 0.f) {
         // screen = ndc * scale + origin: moving the screen by -off moves ndc by -off / scale.
         // Perspective: ndc = clip / w with w = -z, so the shift enters p1/p3 negated;
         // orthographic: w = 1 and it adds directly.
+        // ndc' = a ndc + b. Orthographic (w = 1): p' = a p, offset' = a offset + b. Perspective
+        // (w = -z, the offset multiplies z): offset' = a offset - b.
         const float sx = asFloat(s_xfVp[0]), sy = asFloat(s_xfVp[1]);
-        const float dx = sx != 0.f && !viewportTakesOffset(0) ? -float(s_boxOffX) / sx : 0.f;
-        const float dy = sy != 0.f && !viewportTakesOffset(1) ? -float(s_boxOffY) / sy : 0.f;
         const bool ortho = pr[6] != 0;
-        pr[1] = asBits(asFloat(pr[1]) + (ortho ? dx : -dx));
-        pr[3] = asBits(asFloat(pr[3]) + (ortho ? dy : -dy));
+        for (int axis = 0; axis < 2; axis++) {
+            const AxisMap m = axisMap(axis);
+            const int pScale = axis * 2, pOff = axis * 2 + 1;
+            pr[pScale] = asBits(asFloat(pr[pScale]) * m.a);
+            pr[pOff] = asBits(asFloat(pr[pOff]) * m.a + (ortho ? m.b : -m.b));
+        }
         if (s_copyLog)
             logf("gfx", "box offset %d,%d: %s projection p1 %g -> %g, p3 %g -> %g (viewport scale %g %g)", s_boxOffX,
                  s_boxOffY, ortho ? "ortho" : "persp", asFloat(s_xfProj[1]), asFloat(pr[1]), asFloat(s_xfProj[3]),
@@ -1755,18 +1776,21 @@ void onCommand(const u8* p, u32 len) {
             const u32 idx = reg & 0x1F;
             if (idx < 0x1C) s_tex[(idx & 3) + (reg >= 0xA0 ? 4 : 0)].dirty = true;
         } else if (reg == 0x59) {
-            // Scissor box offset. Hardware: field = (offset + 340) / 2, and both the scissor
-            // box and the primitives move by -offset in the EFB. Aurora only moves its scissor,
-            // by 2 * a 9-bit signed field (its GXSetScissorBoxOffset writes (offset - 342) / 2),
-            // which cannot hold this game's offsets (the bottom-half pass uses 238). So Aurora
-            // always gets the fixed bias (-340) and the bridge applies the offset itself: to the
-            // scissor box and, through the projection, to the geometry.
-            const s32 offX = s32(2 * (v & 0x3FF)) - 340, offY = s32(2 * ((v >> 10) & 0x3FF)) - 340;
+            // Scissor box offset. Hardware: field = (offset + 342) / 2 (the SDK's
+            // GXSetScissorBoxOffset; 171 is no offset), and both the scissor box and the
+            // primitives move by -offset in the EFB. Aurora only moves its scissor, by 2 * a 9-bit
+            // signed field, which cannot hold these games' offsets (Rogue Leader's bottom-half
+            // pass uses 236). So Aurora always gets the fixed bias (-342: no offset) and the
+            // bridge applies the offset itself: to the scissor box, and to the viewport and
+            // projection (axisMap). This used 340 once, which put everything 2 pixels up and left
+            // of its viewport: its last two rows and columns went undrawn (Rebel Strike's water
+            // ripple map, a line along every water tile's edge).
+            const s32 offX = s32(2 * (v & 0x3FF)) - 342, offY = s32(2 * ((v >> 10) & 0x3FF)) - 342;
             if (offX != s_boxOffX || offY != s_boxOffY || !s_boxBiasSent) {
                 s_boxOffX = offX;
                 s_boxOffY = offY;
                 s_boxBiasSent = true;
-                const u32 f = (0u - 170u) & 0x3FF;
+                const u32 f = (0u - 171u) & 0x3FF;
                 bpFull(0x59000000u | (f << 10) | f);
                 sendScissor();
                 if (s_vpKnown) sendViewport();
@@ -1852,7 +1876,7 @@ void onCommand(const u8* p, u32 len) {
     case 0x10: {  // XF register load: shadow the viewport and projection (scissor box offset)
         const u32 hdr = be32(p + 1);
         const u32 addr = hdr & 0xFFFF, cnt = (len - 5) / 4;
-        bool touched = false;
+        bool touched = false, vpTouched = false;
         if (addr < kXfShadow) s_xfBlock[addr] = std::max(s_xfBlock[addr], u16(cnt));  // (the longest: it covers most)
         for (u32 i = 0; i < cnt; i++) {
             const u32 a = addr + i, w = be32(p + 5 + 4 * i);
@@ -1862,6 +1886,7 @@ void onCommand(const u8* p, u32 len) {
             } else if (a >= 0x101A && a <= 0x101F) {
                 s_xfVp[a - 0x101A] = w;
                 s_vpKnown = true;
+                vpTouched = true;
                 touched = true;
             } else if (a >= 0x1020 && a <= 0x1026) {
                 s_xfProj[a - 0x1020] = w;
@@ -1870,10 +1895,8 @@ void onCommand(const u8* p, u32 len) {
             }
         }
         fifo::write_data(p, len);
-        if (touched && (s_boxOffX || s_boxOffY)) {
-            if (s_vpKnown) sendViewport();
-            sendProjection();
-        }
+        if (vpTouched) sendViewport();  // (always: Aurora's origin bias differs from the game's)
+        if (touched && (s_boxOffX || s_boxOffY)) sendProjection();
         return;
     }
     case 0x40:  // CALL_DL: inlined by the CP model
