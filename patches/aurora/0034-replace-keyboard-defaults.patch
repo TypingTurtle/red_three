@@ -1,0 +1,28 @@
+--- a/include/aurora/pad.hpp
++++ b/include/aurora/pad.hpp
+@@ -112,6 +112,8 @@
+ void reset_to_defaults(ProfileTarget target);
+ void clear_bindings(ProfileTarget target);
+ void set_default_keyboard_bindings(uint32_t port, std::vector<binding::Binding> bindings);
++// The port's keyboard defaults become exactly these (an empty list: the port has none).
++void replace_default_keyboard_bindings(uint32_t port, std::vector<binding::Binding> bindings);
+ void set_default_controller_bindings(std::vector<binding::Binding> bindings);
+ [[nodiscard]] std::vector<binding::ControlId> find_conflicts(ProfileTarget target, binding::ControlId control,
+                                                              const binding::PhysicalInput& input);
+--- a/lib/input/profiles.cpp
++++ b/lib/input/profiles.cpp
+@@ -790,6 +790,14 @@
+   }
+ }
+ 
++void replace_default_keyboard_bindings(uint32_t port, std::vector<Binding> bindings) {
++  if (port < 4) {
++    std::erase_if(bindings, [&](const auto& b) { return !accepts(ProfileTarget::keyboard(port), b.input); });
++    keyboardDefaults[port] = std::move(bindings);
++    ++generation;
++  }
++}
++
+ void set_default_controller_bindings(std::vector<Binding> bindings) {
+   std::erase_if(bindings, [&](const auto& b) { return !accepts(ProfileTarget::controller(0), b.input); });
+   std::erase_if(controllerDefaults, [&](const auto& old) {

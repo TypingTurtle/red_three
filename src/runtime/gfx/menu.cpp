@@ -720,6 +720,14 @@ bool fpsRow(const char* text, int& fps, const char* help) {
 // 0..100: a bar the mouse drags, left/right step 5
 // The Controls page's stick meter: port 1's control stick as it is (dot), the deadzone (shaded)
 // and what the game gets after the deadzone and sensitivity (gold), to tune both by eye.
+const char* player2Label(settings::Player2 p) {
+    switch (p) {
+    case settings::Player2::Controller: return "Next controller";
+    case settings::Player2::Keyboard: return "Keyboard";
+    default: return "Off";
+    }
+}
+
 const char* stickCurveLabel(settings::StickCurve c) {
     switch (c) {
     case settings::StickCurve::Linear: return "Linear";
@@ -2201,6 +2209,26 @@ void pageControls() {
     hotkeys::captureTick();
     if (s_hotkeyWasCapturing && !hotkeys::capturing()) s_navBackTb = tbNow() + kTbClock / 4;  // (its release is no menu press)
     s_hotkeyWasCapturing = hotkeys::capturing();
+    heading("MULTIPLAYER");
+    {
+        settings::Settings& st = settings::get();
+        if (enumRow("Player 2", st.player2, player2Label,
+                    "Who plays as player 2 (the GameCube's port 2), for the cooperative and versus modes. Next controller: "
+                    "the next controller connected that player 1 is not using. Keyboard: the keyboard becomes player 2 and "
+                    "player 1 is the controller alone. Off: one player."))
+            s_changed = true;
+        if (st.player2 != settings::Player2::Off) {
+            std::string who;
+            if (st.player2 == settings::Player2::Keyboard) who = "Keyboard (WASD to fly, Space fires)";
+            else if (const auto src = aurora::pad::port_controller(1)) {
+                SDL_Gamepad* g = SDL_GetGamepadFromID(aurora::input::gamepad_for_source(src));
+                const char* name = g ? SDL_GetGamepadName(g) : nullptr;
+                who = name ? name : "Controller";
+            } else who = "Waiting for a second controller";
+            infoRow("Player 2 uses", who, "What player 2 is playing with now.",
+                    st.player2 == settings::Player2::Controller && !aurora::pad::port_controller(1) ? kDim : kText);
+        }
+    }
     heading("CONTROL STICK");
     {
         settings::Settings& st = settings::get();

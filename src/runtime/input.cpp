@@ -71,6 +71,8 @@ void parseScript(const char* s) {
     logf("input", "%zu scripted presses", s_script.size());
 }
 
+std::vector<aurora::binding::Binding> s_keyboardKeys;  // the default keyboard bindings (defaultKeyboard)
+
 void defaultKeyboard() {
     using aurora::binding::Binding;
     using aurora::binding::PhysicalInput;
@@ -106,7 +108,26 @@ void defaultKeyboard() {
     key(c.down, SDL_SCANCODE_G);
     key(c.left, SDL_SCANCODE_F);
     key(c.right, SDL_SCANCODE_H);
-    aurora::pad::set_default_keyboard_bindings(0, std::move(keys));
+    s_keyboardKeys = std::move(keys);
+    aurora::pad::replace_default_keyboard_bindings(0, s_keyboardKeys);
+}
+
+// Player 2 (the option): port 2 off, automatic (the next controller no other port has), or the
+// keyboard's (its default bindings move from port 1 to port 2, so one controller plus the
+// keyboard is a two-player game). Applied when the option changes, and once at start.
+void applyPlayer2() {  // JoystickAccess held
+    static int s_applied = -1;
+    const auto mode = settings::get().player2;
+    if (int(mode) == s_applied) return;
+    s_applied = int(mode);
+    const bool keyboard = mode == settings::Player2::Keyboard;
+    aurora::pad::replace_default_keyboard_bindings(0, keyboard ? std::vector<aurora::binding::Binding>{} : s_keyboardKeys);
+    aurora::pad::replace_default_keyboard_bindings(1, keyboard ? s_keyboardKeys : std::vector<aurora::binding::Binding>{});
+    if (mode == settings::Player2::Controller) aurora::pad::set_port_auto(1);
+    else aurora::pad::clear_port(1);
+    logf("input", "player 2: %s", mode == settings::Player2::Controller ? "the next free controller"
+                                  : keyboard                            ? "the keyboard (port 1: the controller alone)"
+                                                                        : "off");
 }
 
 // --- controller updates off the game thread ---------------------------------------------------
@@ -314,6 +335,7 @@ void placeClicks(aurora::pad::ProfileTarget target, bool bumpers, u32 port) {
 }
 
 void setUpControllers() {  // JoystickAccess held
+    applyPlayer2();
     auto& s_done = s_setUp;
     // the option changed: every controller is set up again
     static int s_bumpersApplied = -1;

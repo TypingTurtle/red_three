@@ -101,6 +101,10 @@ void set(const std::string& key, const std::string& value) {
     else if (key == "stick_sensitivity") s.stickSensitivity = std::clamp(n, 25, 200);
     else if (key == "cstick_deadzone") s.cStickDeadzone = std::clamp(n, 0, 50);
     else if (key == "cstick_sensitivity") s.cStickSensitivity = std::clamp(n, 25, 200);
+    else if (key == "player2") {
+        for (int i = 0; i < int(Player2::Count); i++)
+            if (value == player2Name(Player2(i))) s.player2 = Player2(i);
+    }
     else if (key == "stick_curve") {
         for (int i = 0; i < int(StickCurve::Count); i++)
             if (value == stickCurveName(StickCurve(i))) s.stickCurve = StickCurve(i);
@@ -281,6 +285,8 @@ void save() {
     fprintf(f, "cstick_sensitivity=%d\n", s.cStickSensitivity);
     fprintf(f, "# how turning follows the control stick: smooth, linear or gamecube (the game's own curve)\n");
     fprintf(f, "stick_curve=%s\n", stickCurveName(s.stickCurve));
+    fprintf(f, "# player 2 (port 2): off, controller (the next free one) or keyboard (port 1 is then the controller alone)\n");
+    fprintf(f, "player2=%s\n", player2Name(s.player2));
     fprintf(f, "# gyro aiming in flight: 0 off, 1 always, 2 while the button is held, 3 the button toggles it, 4 off while held\n");
     fprintf(f, "gyro=%d\n", int(s.gyroMode));
     fprintf(f, "# the triggers' clicks (full boost / brake) on LB / RB, the triggers analog only, Z on the right stick click\n");
@@ -340,6 +346,14 @@ const char* buttonPromptsName(ButtonPrompts p) {
     case ButtonPrompts::PlayStation: return "playstation";
     case ButtonPrompts::GameCube: return "gamecube";
     default: return "auto";
+    }
+}
+
+const char* player2Name(Player2 p) {
+    switch (p) {
+    case Player2::Controller: return "controller";
+    case Player2::Keyboard: return "keyboard";
+    default: return "off";
     }
 }
 

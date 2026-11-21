@@ -36,6 +36,9 @@ enum class StickCurve : int { Smooth = 0, Linear, GameCube, Count };
 // setup); 5.1 / 7.1 play the game's Pro Logic II surround on speakers of their own, stereo plays
 // it matrix-encoded (a receiver's Pro Logic II decoder unfolds it). settings.ini:
 // speakers=auto|stereo|5.1|7.1
+// Player 2 (port 2, multiplayer): off, the next free controller, or the keyboard (which then
+// leaves port 1, so port 1 is the controller alone)
+enum class Player2 : int { Off = 0, Controller, Keyboard, Count };
 enum class Speakers : int { Auto = 0, Stereo, Surround51, Surround71, Count };
 
 struct Settings {
@@ -106,6 +109,7 @@ struct Settings {
     // besides Red Two's own textures folder: e.g. a pack unpacked in ~/Downloads. Empty: none.
     std::string texturesFolder;
     // controls
+    Player2 player2 = Player2::Off;
     ButtonPrompts buttonPrompts = ButtonPrompts::Auto;  // the game's on-screen button prompts (gfx/button_icons.cpp)
     // Controller sticks (input.cpp shapeStick): a round deadzone in % of the stick's travel that
     // the output rescales from (both sticks), and the control stick's sensitivity in % (output =
@@ -149,7 +153,8 @@ const char* aspectName(Aspect a);
 const char* buttonPromptsName(ButtonPrompts p);  // as settings.ini writes it
 const char* gyroModeName(GyroMode m);
 const char* speakersName(Speakers s);  // as settings.ini writes it
-const char* stickCurveName(StickCurve c);  // as settings.ini writes it
+const char* stickCurveName(StickCurve c);
+const char* player2Name(Player2 p);  // as settings.ini writes it
 inline constexpr int kGyroSpeedMin = 10, kGyroSpeedMax = 400;
 float resolutionScale(Resolution r);  // Aurora frame buffer scale; 0 = the window's own size
 float aspectValue(Aspect a);          // width / height (4:3 = the game's own); -1 = the window's
