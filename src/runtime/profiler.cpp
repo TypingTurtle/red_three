@@ -202,7 +202,7 @@ HANDLE gameThreadHandle() {
 
 // --- stall reports ------------------------------------------------------------------------
 std::atomic<u64> s_lastPresent{0};  // time base of the last presented frame (0: none yet)
-constexpr int kStallDepth = 14;
+constexpr int kStallDepth = 24;
 struct StallSample {
     u64 f[kStallDepth];
 };
@@ -229,6 +229,24 @@ void stallReport(const std::vector<StallSample>& samples, double ms, bool ongoin
          ongoing ? "still waiting:" : "frames again after", ms, stallLevel(), samples.size());
     for (size_t i = 0; i < v.size() && i < 4; i++)
         logf("stall", "  %3.0f%%  %s", 100.0 * v[i].second / double(samples.size()), v[i].first.c_str());
+    // R2_STALL_DETAIL=1: also every function by the share of samples it is on the stack in
+    // (inclusive: what a routine and the ones it calls took), the deepest 14 frames
+    static const bool detail = envFlag("R2_STALL_DETAIL");
+    if (!detail) return;
+    std::unordered_map<std::string, u32> inclusive;
+    for (const StallSample& s : samples) {
+        std::vector<std::string> seen;
+        for (int i = 0; i < kStallDepth && s.f[i]; i++) {
+            const std::string& name = resolve(s.f[i]).name;
+            if (std::find(seen.begin(), seen.end(), name) != seen.end()) continue;
+            seen.push_back(name);
+            inclusive[name]++;
+        }
+    }
+    std::vector<std::pair<std::string, u32>> w(inclusive.begin(), inclusive.end());
+    std::sort(w.begin(), w.end(), [](auto& a, auto& b) { return a.second > b.second; });
+    for (size_t i = 0; i < w.size() && i < 40; i++)
+        logf("stall", "    incl %3.0f%%  %s", 100.0 * w[i].second / double(samples.size()), w[i].first.c_str());
 }
 
 #else
@@ -249,7 +267,8 @@ void stallWatchdog(HANDLE thread) {
         while (s_lastPresent.load(std::memory_order_relaxed) == last) {
             StallSample s{};
             if (sampleStack(thread, s.f, kStallDepth)) samples.push_back(s);
-            Sleep(5);
+            static const bool detail = envFlag("R2_STALL_DETAIL");  // (every millisecond)
+            Sleep(detail ? 1 : 5);
             const u64 now = tbNow();
             if (now - reported >= kInterim && s_lastPresent.load(std::memory_order_relaxed) == last) {
                 stallReport(samples, double(now - last) * 1000.0 / double(kTbClock), true);
