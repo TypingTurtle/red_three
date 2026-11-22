@@ -1042,17 +1042,17 @@ void updateSection() {
     char buf[192];
     switch (u.phase) {
     case P::Available:
-        snprintf(buf, sizeof buf, "Red Two %s is out (you have %s)", u.latest.c_str(), update::version());
-        infoRow("New version", buf, "A newer Red Two is on GitHub. Its release notes say what changed.", kAmber);
+        snprintf(buf, sizeof buf, "%s %s is out (you have %s)", game::kGame.app, u.latest.c_str(), update::version());
+        infoRow("New version", buf, "A newer version is on GitHub. Its release notes say what changed.", kAmber);
         if (u.canInstall) {
             if (buttonRow("Update", "DOWNLOAD AND INSTALL",
-                          "Downloads the new version, checks it and puts it in place of this one; then Red Two restarts "
+                          "Downloads the new version, checks it and puts it in place of this one; then the game restarts "
                           "into it. Your settings, controls, memory card, save states and texture packs stay as they are "
                           "(save states only load into the version that made them).",
                           kAmber))
                 update::install();
         } else if (buttonRow("Update", "OPEN THE DOWNLOAD PAGE",
-                             "This copy of Red Two cannot replace itself (built from source, or not the release download): "
+                             "This copy cannot replace itself (built from source, or not the release download): "
                              "get the new version from its release page.",
                              kAmber)) {
             openUrl(u.pageUrl);
@@ -1069,9 +1069,9 @@ void updateSection() {
         break;
     case P::Ready:
         snprintf(buf, sizeof buf, "RESTART INTO %s", u.latest.c_str());
-        if (s_launcher ? buttonRow("Update installed", buf, "Red Two restarts into the new version.", kAmber)
+        if (s_launcher ? buttonRow("Update installed", buf, "The game restarts into the new version.", kAmber)
                        : confirmRow("Update installed", buf, "PRESS AGAIN: RESTART", s_confirmUpdateRestart,
-                                    "Red Two restarts into the new version, in the launcher. What the game saved to its "
+                                    "The game restarts into the new version, in the launcher. What the game saved to its "
                                     "memory card and your save states are kept; a mission in progress is not. Or keep "
                                     "playing: the next start is the new version."))
             restartIntoUpdate();
@@ -1086,7 +1086,7 @@ void updateSection() {
         break;
     }
     case P::Updated:
-        snprintf(buf, sizeof buf, "Red Two %s (updated from %s)", u.latest.c_str(), u.from.c_str());
+        snprintf(buf, sizeof buf, "%s %s (updated from %s)", game::kGame.app, u.latest.c_str(), u.from.c_str());
         infoRow("Updated", buf, "This is the new version. Its release notes say what changed.", kGold);
         break;
     default:
