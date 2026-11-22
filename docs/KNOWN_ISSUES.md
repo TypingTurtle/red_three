@@ -30,3 +30,18 @@ The shadow silhouettes are drawn into 96x96 and 224x224 viewports at the EFB's c
 ### Fix
 
 Find what in Aurora or the bridge depends on the old placement for the shadow passes, then use the exact placement everywhere and remove `rippleMapViewport()` and the `legacyBoxBias()` path.
+
+## Short pauses at cuts into cutscenes and at the hangar launch
+
+The picture holds for about 0.13–0.15 s when a mission cuts to a cutscene (Relics of Geonosis: the ships arriving, the transport leaving) and for a few frames at the hangar launch. It's noticeable at 60 fps.
+
+### What's known
+
+- The game does this itself: it stops drawing while it loads the cutscene's data and sets it up, switches video modes (VI off, then 304-line letterbox: two retraces), and pages code and data in from ARAM. A GameCube pauses (or shows black) here too, for longer.
+- Red Three made it much longer; fixed in November 2026: the timer thread slept ~0.5 ms after every event, so each of the game's ~640 back-to-back 4 KiB disc reads took that long (mission load 2.3 s → 0.4 s, the cut 0.5 s → 0.15 s); fast loading's disc command overhead is 0.05 ms; frames the game draws while the VI is off are shown; with widescreen, the one frame drawn for the old XFB height at a cut is skipped.
+- Tested and ruled out: keeping cutscenes letterboxed in widescreen (`R2_NO_LETTERBOX_FILL=1`), near-instant disc reads (`R2_DVD_OVERHEAD=5`: removes the small hitch at the hangar launch, ~18 ms off the cut).
+- `R2_STALL_MS=<ms>` with `R2_STALL_DETAIL=1` reports short hitches with every function's share; `R2_COPY_LOG=1` shows the frames around a cut.
+
+### Fix ideas
+
+Have the game load the next cutscene in the background while it keeps playing (prefetch its resources ahead of the trigger), or come back with fresh ideas once more of the game is understood.
