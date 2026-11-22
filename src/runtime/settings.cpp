@@ -69,6 +69,7 @@ void set(const std::string& key, const std::string& value) {
     else if (key == "ubershaders") s.ubershaders = parseBool(value);
     else if (key == "precompile_shaders") s.precompileShaders = parseBool(value);
     else if (key == "hud_edges") s.hudEdges = parseBool(value);
+    else if (key == "wide_culling") s.wideCulling = parseBool(value);
     else if (key == "tile_menus") s.tileMenus = parseBool(value);
     else if (key == "game_dither") s.gameDither = parseBool(value);
     else if (key == "volume") s.volume = n < 0 ? 0 : n > 100 ? 100 : n;
@@ -249,6 +250,7 @@ void save() {
     fprintf(f, "# every shader this PC has seen compiled before the game starts (0: start at once, shaders compile in play)\n");
     fprintf(f, "precompile_shaders=%d\n", s.precompileShaders);
     fprintf(f, "hud_edges=%d\n", s.hudEdges);
+    fprintf(f, "wide_culling=%d\n", s.wideCulling);
     fprintf(f, "tile_menus=%d\n", s.tileMenus);
     fprintf(f, "# the game's own dither pattern (made for 640x480: a grid at higher resolutions)\n");
     fprintf(f, "game_dither=%d\n", s.gameDither);

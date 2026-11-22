@@ -1206,6 +1206,12 @@ void pageDisplay(settings::Settings& s) {
         s_changed = s_display = true;
     if (toggleRow("HUD at screen edges", s.hudEdges, "Widescreen: the flight HUD sits at the edges of the screen."))
         s_changed = true;
+#if defined(R2_GAME_GLRE64)
+    if (toggleRow("Draw the whole wide view", s.wideCulling,
+                  "Widescreen: the game draws everything in the wider view (off: objects at the sides of the screen "
+                  "can be missing, as the game only draws what a 4:3 screen would show)."))
+        s_changed = true;
+#endif
     if (toggleRow("Fill menu backgrounds", s.tileMenus,
                   "Widescreen: the menus' panel backgrounds repeat into the sides of the screen."))
         s_changed = true;
