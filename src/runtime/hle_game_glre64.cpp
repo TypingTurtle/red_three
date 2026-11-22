@@ -82,6 +82,24 @@ void hle_ViewportAspect(Ctx& c) {
     gfx::noteWidenedAspect(float(projection), true);  // (mid-frame: Aurora gets it at the frame boundary)
 }
 
+// GXSetTexCoordGen2 (the SDK's, 0x7F6374AC) for a texture coordinate past GX_TEXCOORD7: the GameCube
+// has 8. With the wider camera (R2_WIDE_CULLING) the game's material setup gave some draws a 9th
+// (more projected shadows / light maps on them: the texgen allocator 0x7F3B55FC has no limit). The
+// SDK then indexed its 8-entry matrix-index jump table with 8 and jumped into whatever followed
+// it: memory corruption and a crash a few seconds later (a loading screen reading a garbage
+// pointer). The extra texgen is dropped (Aurora clamps the count to 8: patch 0037).
+void hle_GXSetTexCoordGen2(Ctx& c) {
+    if (c.r[3] >= 8) {
+        static int logged = 0;
+        if (logged < 4) {
+            logged++;
+            logf("gx", "GXSetTexCoordGen2 for texcoord %u (the GameCube has 8): dropped (lr %08X)", c.r[3], c.lr);
+        }
+        return;
+    }
+    f_7F6374AC_orig(c);
+}
+
 namespace unlocks {
 const char* name(int) { return ""; }
 const char* help(int) { return ""; }
