@@ -45,3 +45,21 @@ The picture holds for about 0.13–0.15 s when a mission cuts to a cutscene (Rel
 ### Fix ideas
 
 Have the game load the next cutscene in the background while it keeps playing (prefetch its resources ahead of the trigger), or come back with fresh ideas once more of the game is understood.
+
+## Wide culling (issue #1): water looks off
+
+`R2_WIDE_CULLING=1` widens the game's own camera so objects at the sides of 21:9 and 16:9 screens are no longer culled. It plays through Geonosis without crashing now (the crash was a texgen count of 9, clamped in `patches/aurora/0037`), and the edges look right. But the water looks wrong with it on and fine with it off, so it stays off by default.
+
+### What's known
+
+- The water is drawn with 2 indirect stages and 6 texgens: a ripple map (256x256, drawn every frame at the EFB corner) and most likely a copy of the screen for refraction.
+- With wide culling, the camera's projection reaches Aurora already widened (aspect 2.528 at 21:9) and Aurora leaves it alone. Without it, Aurora widens the 4:3 projection itself. If one of the water's texgens maps positions to the screen copy with a matrix built from the camera, the two cases sample the copy differently.
+- An F10 dump over water with wide culling on: `gx_frame_3157.txt` (first level, 21:9).
+
+### Next
+
+Get a real picture of it (F10 only dumps GX commands), compare the water's texgen matrices with and without wide culling, and see which texgen reads the screen copy.
+
+### Stutter comes first
+
+Sam's call after the Geonosis run: the cutscene and hangar stutter above matters more than the culling. Widescreen isn't worth much if the game doesn't feel smooth.
