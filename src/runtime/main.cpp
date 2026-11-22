@@ -102,6 +102,7 @@ void fatal(const char* fmt, ...) {
 // Ends the process at once. ExitProcess runs DLL teardown (Dawn/D3D12, SDL) while other host
 // threads may hold locks, which can leave a dead, unclosable window behind.
 void quit(int code) {
+    if (code == 0) gfx::markSessionClean();  // (a normal end: the shader caches are fine)
     fflush(stdout);
     fflush(stderr);
 #ifdef _WIN32
@@ -193,6 +194,7 @@ void quitToDesktop() {
 // arguments, same working folder) takes over and this one quits.
 void restartGame(bool toLauncher) {
     // the new instance: straight into the game (a reset, a save import) or to the launcher
+    gfx::markSessionClean();  // (the new instance must not take this one for a crash)
 #ifdef _WIN32
     _putenv(toLauncher ? "R2_LAUNCHER=1" : "R2_LAUNCHER=0");
 #else

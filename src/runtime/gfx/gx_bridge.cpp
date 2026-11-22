@@ -21,6 +21,7 @@
 #include <aurora/texture.hpp>
 #include <SDL3/SDL_hints.h>
 #include <SDL3/SDL_init.h>
+#include <SDL3/SDL_filesystem.h>
 #include <SDL3/SDL_keyboard.h>
 #include <SDL3/SDL_properties.h>
 #include <SDL3/SDL_timer.h>
@@ -204,6 +205,52 @@ void precompileShaders() {
     logf("gfx", "before the game started (%.1f s): %u pipelines built, %llu textures prefetched (%.1f GiB%s)",
          double(tbNow() - t0) / double(kTbClock), st->createdPipelines, (unsigned long long)tex.total,
          double(tex.bytes) / double(1ull << 30), tex.budgetFull ? ", memory budget reached" : "");
+}
+
+// A session that crashed may have left a pipeline the graphics driver can't build in the cache:
+// Aurora builds every cached pipeline at startup, so every start after it crashed too (a player
+// on an AMD integrated GPU: "it just flashes and never loads", until the game was reinstalled).
+// A marker file lives in the cache folder while the game runs and is removed when it quits
+// normally (markSessionClean, from quit(0)); found at startup, the last session crashed, and the
+// pipeline and Dawn caches are moved aside (into crashed_cache\) so this start builds afresh.
+static std::string s_sessionMarker;
+
+void guardCacheAgainstCrashes(std::string dir) {
+    if (envFlag("R2_HEADLESS") || envFlag("R2_BACKGROUND") || getenv("R2_INPUT")) return;  // (tests: their own cache)
+    if (dir.empty()) {  // Aurora's own folder (as aurora.cpp picks it)
+        char* p = SDL_GetPrefPath(nullptr, game::kGame.app);
+        if (!p) return;
+        dir = p;
+        SDL_free(p);
+    }
+    if (!dir.empty() && dir.back() != '/' && dir.back() != '\\') dir += '/';
+    namespace fs = std::filesystem;
+    std::error_code ec;
+    s_sessionMarker = dir + "session_running";
+    if (fs::exists(s_sessionMarker, ec)) {
+        const std::string aside = dir + "crashed_cache/";
+        fs::create_directories(aside, ec);
+        int moved = 0;
+        for (const char* f : {"pipeline_cache.db", "pipeline_cache.db-wal", "pipeline_cache.db-shm", "dawn_cache.db",
+                              "dawn_cache.db-wal", "dawn_cache.db-shm"}) {
+            if (!fs::exists(dir + f, ec)) continue;
+            fs::remove(aside + f, ec);
+            fs::rename(dir + f, aside + f, ec);
+            if (!ec) moved++;
+        }
+        logf("gfx", "the last session did not end normally: the shader caches were moved to %s (%d files) and are "
+             "built again", aside.c_str(), moved);
+    }
+    if (FILE* f = fopen(s_sessionMarker.c_str(), "w")) {
+        fputs("Red Three is running (removed when it quits normally)\n", f);
+        fclose(f);
+    }
+}
+
+void markSessionClean() {
+    if (s_sessionMarker.empty()) return;
+    std::error_code ec;
+    std::filesystem::remove(s_sessionMarker, ec);
 }
 
 // The launcher: the settings menu (menu.cpp, in a launcher mode) before the game boots, so
@@ -2029,6 +2076,7 @@ bool init(int argc, char** argv, std::string& disc, const std::string& discNote)
         if (userPathDir.empty()) userPathDir = cacheDir;
         cfg.userPath = userPathDir.c_str();  // controller/keyboard bindings (input.json) too
     }
+    guardCacheAgainstCrashes(cacheDir.empty() ? std::string() : cacheDir);
     cfg.desiredBackend = BACKEND_AUTO;
     cfg.msaa = settings::get().msaa >= 4 ? 4 : 1;  // (WebGPU: 1 or 4 samples)
     cfg.vsync = false;  // the game paces itself on the emulated retrace

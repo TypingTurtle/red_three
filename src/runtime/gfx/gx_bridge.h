@@ -8,6 +8,8 @@ namespace rt::gfx {
 // window + renderer; registers the GX command sink. disc: the image the game starts with (""
 // if none was found); without a usable one the launcher asks for it and disc is its choice.
 // discNote: why there is none (shown on the launcher's disc page).
+// The shader caches' crash guard (gx_bridge.cpp): the session ended normally
+void markSessionClean();
 bool init(int argc, char** argv, std::string& disc, const std::string& discNote);
 void vblank();                     // once per emulated retrace (keeps the window responsive)
 u64 frames();                      // frames presented
