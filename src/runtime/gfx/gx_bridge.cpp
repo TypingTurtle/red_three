@@ -1849,14 +1849,38 @@ void onCommand(const u8* p, u32 len) {
             const u32 dest = (s_bp[0x4B] & 0xFFFFFF) << 5, stride = (s_bp[0x4D] & 0x3FF) * 32;
             const u32 h = ((s_bp[0x4A] >> 10) & 0x3FF) + 1;
             u32 line = 0, lines = 0;
-            const bool shown = disp && viLocateCopy(dest, stride, line, lines);
+            bool shown = disp && viLocateCopy(dest, stride, line, lines);
+            // A whole picture copied while the VI shows nothing (VTR's active lines 0: the game
+            // switches video modes, e.g. into a 304-line letterboxed cutscene) is shown at its own
+            // height. The game keeps drawing a frame every retrace meanwhile; hardware showed black
+            // for those ~0.1 s, Red Three held the last frame and it read as a hitch. (Not the
+            // 2-line scratch copies that clear EFB bands, nor 528-line copies of the whole EFB.)
+            if (disp && !shown && viXfbLines() == 0 && h >= 200 && h <= 480 && stride && stride >= 2 * ((s_bp[0x4A] & 0x3FF) + 1)) {
+                shown = true;
+                line = 0;
+                lines = h;
+            }
             // Reaching the bottom completes the frame. So does a second copy to the top (a
             // frame that never reached the bottom was a whole picture after all), which bounds
             // how many game frames can pile into one of Aurora's. Battle of Hoth's intro copies
             // its first 304-line frame while the VI still scans 450 lines (the new VI setup
             // lands at the next retrace), the second into an XFB the VI does not show yet, and
             // only the third completes: ~54,000 draws in one frame (Aurora patch 0018).
-            const bool completes = shown && (line + h >= lines || (line == 0 && s_topCopied));
+            bool completes = shown && (line + h >= lines || (line == 0 && s_topCopied));
+            // Widescreen fills a letterboxed frame and draws it compensated for the XFB's height,
+            // which Aurora learns from the copies: the first frame at a new height (450 -> 304
+            // lines at a cut to a cutscene, and back) was drawn for the old one and showed the
+            // wrong shape for a frame. That frame is not presented: the next one, drawn for the new
+            // height, completes the picture (the previous stays on screen 16 ms longer).
+            static u32 s_shownLines = 0;
+            if (shown) {
+                const bool changed = s_shownLines && lines != s_shownLines;
+                s_shownLines = lines;
+                if (changed && completes && settings::get().aspect != settings::Aspect::R4_3) {
+                    completes = false;
+                    s_topCopied = true;  // (the next copy to the top completes)
+                }
+            }
             if (shown && line == 0) s_topCopied = true;
             if (disp && s_copyLog)
                 logf("gfx", "display copy src %u,%u %ux%u stride %u -> %08X: %s line %u of %u (%u draws in the frame) [%s]", s_bp[0x49] & 0x3FF,
