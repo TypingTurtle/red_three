@@ -4,8 +4,6 @@
 // payload. The one joining sends Hello; the host answers Setup (settings, input delay, memory
 // card); then both send Input for every controller poll (the poll's number and that machine's
 // port 1) and, every 600 polls, Hash (a checksum of main memory, to report a desync).
-#include "netplay.h"
-
 #ifdef _WIN32
 #include <winsock2.h>
 #include <ws2tcpip.h>
@@ -24,6 +22,8 @@ using sock_t = int;
 #define closesock close
 #endif
 
+#include <algorithm>
+#include <cctype>
 #include <chrono>
 #include <cstdio>
 #include <cstdlib>
@@ -37,6 +37,7 @@ using sock_t = int;
 #include <vector>
 
 #include "ctx.h"
+#include "netplay.h"
 #include "game.h"
 #include "mods.h"
 #include "settings.h"
