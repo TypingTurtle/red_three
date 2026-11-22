@@ -213,7 +213,17 @@ void setDeterministic(bool on) {
         s_virtAhead = s64(s_virt.load()) - s64(rawTb());
     }
     s_det = on;
+    g_detLoops = on;
     logf("time", "deterministic guest clock %s", on ? "on" : "off");
+}
+
+bool g_detLoops = false;  // (ctx.h poll)
+static u32 s_detLoopCount = 0;
+void detLoop() {
+    if (++s_detLoopCount >= 64) {
+        s_detLoopCount = 0;
+        detAdvance(20);  // 64 loop iterations: 0.5 us
+    }
 }
 
 // the guest looked at time (or polled a device): its clock moves on a little

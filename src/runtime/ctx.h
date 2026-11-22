@@ -283,8 +283,13 @@ void psqStoreQ(Ctx& c, u32 fs, u32 addr, bool w, u32 gqr);
 using GuestFn = void (*)(Ctx&);
 void dispatch(Ctx& c, u32 addr);  // indirect call through the function table
 void safepoint(Ctx& c, u32 pc);   // deliver pending interrupts (loop back-edges, mtmsr)
+// Deterministic guest clock (netplay, events.cpp): loop back-edges also move the guest's time
+// on (a little every 64): a spin loop on memory that only an interrupt changes still ends.
+extern bool g_detLoops;
+void detLoop();
 inline void poll(Ctx& c, u32 pc) {
     if (g_irqPending) [[unlikely]] safepoint(c, pc);
+    else if (g_detLoops) [[unlikely]] detLoop();
 }
 // Back-edge of a spin-wait loop that only an interrupt can end (hooks.txt "idle"): sleep
 // until the event timer raises g_irqPending instead of burning a host core.

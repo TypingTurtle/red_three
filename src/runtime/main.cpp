@@ -1103,6 +1103,7 @@ int main(int argc, char** argv) {
     }
     if (!discOpen(disc)) fatal("cannot open the disc image %s", disc.c_str());
     netplay::start(argc, argv);  // (experimental) online multiplayer: connects before the game boots
+    if (envFlag("R2_DETERMINISTIC")) setDeterministic(true);  // (tests: the netplay clock alone)
     loadFst();
     Ctx* boot = nullptr;
     threadsInit(boot);
