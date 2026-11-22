@@ -1,0 +1,25 @@
+--- a/lib/gx/command_processor.cpp
++++ b/lib/gx/command_processor.cpp
+@@ -576,7 +576,7 @@
+            std::abs(vp.height - static_cast<float>(r.height)) <= 2.f;
+   });
+   if (rtt) { // logged once per viewport (the first few)
+-    static std::array<std::array<float, 4>, 8> logged{};
++    static std::array<std::array<float, 4>, 32> logged{};
+     static u32 count = 0;
+     const std::array<float, 4> key{vp.left, vp.top, vp.width, vp.height};
+     if (count < logged.size() && std::find(logged.begin(), logged.begin() + count, key) == logged.begin() + count) {
+--- a/lib/gx/gx.hpp
++++ b/lib/gx/gx.hpp
+@@ -442,7 +442,10 @@
+   // Source rectangles (logical) of recent texture copies: a draw into a viewport that is one of
+   // them renders a texture (shadow maps, reflections) and gets no widescreen scaling
+   // (render_to_texture_viewport, command_processor.cpp)
+-  std::array<gfx::ClipRect, 8> rttRects{};
++  // (32: Rebel Strike copies more than 8 different rectangles - shadows, sun glare, the water's
++  // ripple map, cinematics - and with 8 the ripple map could drop out: its ripples squeezed
++  // as 2D in widescreen, a line along every water tile's edge)
++  std::array<gfx::ClipRect, 32> rttRects{};
+   u32 rttRectNext = 0;
+   GXTexFmt texCopyFmt;
+   u32 texCopyDstWidth = 0;
