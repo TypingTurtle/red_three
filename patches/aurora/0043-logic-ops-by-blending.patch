@@ -1,0 +1,55 @@
+diff --git a/lib/gx/gx.cpp b/lib/gx/gx.cpp
+index ba8b281..7e620e0 100644
+--- a/lib/gx/gx.cpp
++++ b/lib/gx/gx.cpp
+@@ -155,6 +155,50 @@ wgpu::BlendState to_blend_state(GXBlendMode mode, GXBlendFactor srcFac, GXBlendF
+           .dstFactor = wgpu::BlendFactor::One,
+       };
+       break;
++    // The rest has no blend equivalent: approximated with blending, as Dolphin does on GPUs
++    // without logic ops (bitwise ops on colors in 0..1: AND ~ a multiply, OR ~ a screen, ...).
++    // Rebel Strike's on-foot targeting computer uses one (AND): it was a fatal error.
++    case GX_LO_AND: // s & d
++      colorBlendComponent = {wgpu::BlendOperation::Add, wgpu::BlendFactor::Dst, wgpu::BlendFactor::Zero};
++      break;
++    case GX_LO_REVAND: // s & ~d
++      colorBlendComponent = {wgpu::BlendOperation::Add, wgpu::BlendFactor::OneMinusDst, wgpu::BlendFactor::Zero};
++      break;
++    case GX_LO_INVAND: // ~s & d
++      colorBlendComponent = {wgpu::BlendOperation::Add, wgpu::BlendFactor::Zero, wgpu::BlendFactor::OneMinusSrc};
++      break;
++    case GX_LO_XOR: // s ^ d
++      colorBlendComponent = {wgpu::BlendOperation::Add, wgpu::BlendFactor::OneMinusDst,
++                             wgpu::BlendFactor::OneMinusSrc};
++      break;
++    case GX_LO_OR: // s | d
++      colorBlendComponent = {wgpu::BlendOperation::Add, wgpu::BlendFactor::One, wgpu::BlendFactor::OneMinusSrc};
++      break;
++    case GX_LO_NOR: // ~(s | d)
++    case GX_LO_NAND: // ~(s & d)
++      colorBlendComponent = {wgpu::BlendOperation::Add, wgpu::BlendFactor::OneMinusDst,
++                             wgpu::BlendFactor::OneMinusSrc};
++      break;
++    case GX_LO_EQUIV: // ~(s ^ d)
++      colorBlendComponent = {wgpu::BlendOperation::Add, wgpu::BlendFactor::OneMinusDst, wgpu::BlendFactor::Zero};
++      break;
++    case GX_LO_INV: // ~d
++      colorBlendComponent = {wgpu::BlendOperation::Add, wgpu::BlendFactor::OneMinusDst,
++                             wgpu::BlendFactor::OneMinusDst};
++      break;
++    case GX_LO_REVOR: // s | ~d
++      colorBlendComponent = {wgpu::BlendOperation::Add, wgpu::BlendFactor::One, wgpu::BlendFactor::OneMinusDst};
++      break;
++    case GX_LO_INVCOPY: // ~s
++      colorBlendComponent = {wgpu::BlendOperation::Add, wgpu::BlendFactor::OneMinusSrc,
++                             wgpu::BlendFactor::OneMinusSrc};
++      break;
++    case GX_LO_INVOR: // ~s | d
++      colorBlendComponent = {wgpu::BlendOperation::Add, wgpu::BlendFactor::OneMinusSrc, wgpu::BlendFactor::One};
++      break;
++    case GX_LO_SET:
++      colorBlendComponent = {wgpu::BlendOperation::Add, wgpu::BlendFactor::One, wgpu::BlendFactor::One};
++      break;
+     }
+     break;
+   }
