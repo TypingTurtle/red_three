@@ -36,3 +36,7 @@ noentry 8003c194
 
 # Widescreen: the game's cameras render and cull for the display's aspect (hle_game_glre64.cpp)
 hle     ViewportAspect
+
+# Wide culling: more objects in view give some draws more than 8 texgens; the SDK's
+# GXSetTexCoordGen2 then jumped through a table entry past its 8 (src/runtime/hle_game_glre64.cpp)
+hle     GXSetTexCoordGen2

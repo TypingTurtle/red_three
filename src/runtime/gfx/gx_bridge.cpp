@@ -2145,6 +2145,7 @@ bool init(int argc, char** argv, std::string& disc, const std::string& discNote)
     cfg.mem1Size = 0;
     cfg.mem2Size = 0;
     if (envFlag("R2_HEADLESS")) cfg.surface.type = AURORA_SURFACE_HEADLESS;
+    cfg.allowCpuAdapter = envFlag("R2_CPU_GPU");  // a software renderer (llvmpipe / WARP): tests on machines without a GPU
     cfg.startFullscreen = settings::get().fullscreen;
     for (int i = 1; i < argc; i++)
         if (!strcmp(argv[i], "--fullscreen")) cfg.startFullscreen = settings::get().fullscreen = true;
