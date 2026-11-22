@@ -57,8 +57,19 @@ void hle_ViewportAspect(Ctx& c) {
     const double display = s_displayAspect.load(std::memory_order_relaxed);
     const double aspect = c.f[1];
     const u32 lines = viXfbLines();
-    if (gameCulling || display < 4.0 / 3.0 + 0.01 || !(aspect > 0.5 && aspect < 8.0) || (lines && lines < 408)) return;
-    const double wide = rsingle(aspect * display * 0.75);
+    if (gameCulling || display < 4.0 / 3.0 + 0.01 || !(aspect > 0.5 && aspect < 8.0)) return;
+    // The picture's shape as the game draws it: 4:3, or in a letterboxed frame (the 304-line
+    // cinematics, the turn-around at a map's edge) 4:3 stretched by 480 / lines, which Aurora
+    // stretches further to fill the display (letterbox fill). Its camera widens by what the
+    // display adds on top; without it the sides were culled again during the turn-around.
+    double picture = 4.0 / 3.0;
+    if (lines && lines < 408) {
+        static const bool noFill = getenv("R2_NO_LETTERBOX_FILL") && atoi(getenv("R2_NO_LETTERBOX_FILL"));
+        if (noFill || lines < 200) return;
+        picture = 4.0 / 3.0 * 480.0 / double(lines);
+    }
+    if (display < picture * 1.005) return;  // (the display is no wider than the picture)
+    const double wide = rsingle(aspect * display / picture);
     c.f[1] = c.ps1[1] = wide;
     // the projection's aspect: the camera update multiplies by the camera's factor (+0x8C)
     double projection = wide;
