@@ -572,7 +572,8 @@ u8 iplReadByte() {
     const u32 a = (s_ipl.cmd & 0x7FFFFFFF) >> 6;
     u8 v = 0;
     if ((s_ipl.cmd & 0x7FFFFF00) == 0x20000000) {  // RTC
-        const u32 secs = u32(time(nullptr) - 946684800);  // since 2000-01-01
+        // since 2000-01-01; deterministic (netplay): the same on both machines (2010-01-01, then the guest clock)
+        const u32 secs = deterministic() ? u32(315532800 + tbNow() / kTbClock) : u32(time(nullptr) - 946684800);
         v = u8(secs >> (24 - 8 * (s_ipl.pos & 3)));
     } else if ((s_ipl.cmd & 0x7FFFFF00) == 0x20000100) {  // SRAM
         v = s_sram[s_ipl.pos & 63];
