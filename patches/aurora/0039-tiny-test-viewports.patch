@@ -1,0 +1,15 @@
+--- a/lib/gx/command_processor.cpp
++++ b/lib/gx/command_processor.cpp
+@@ -598,6 +598,12 @@
+   if (render_to_texture_viewport()) {
+     return {};
+   }
++  // A tiny viewport is a test the game reads back, not part of the picture (Rebel Strike's sun:
++  // drawn into 8x8 at EFB x 514 and read with EFB peeks for its glare and the water's glints).
++  // Scaled, the sun could miss the box with the game's own widened camera: the water went dark.
++  if (g_gxState.logicalViewport.width <= 16.f && g_gxState.logicalViewport.height <= 16.f) {
++    return {};
++  }
+   if (g_gxState.projType != GX_ORTHOGRAPHIC) {
+     const ProjScale ps = perspective_scale(k, v);
+     if (std::abs(g_gxState.proj.m0[2]) < 0.01f && std::abs(g_gxState.proj.m1[2]) < 0.01f) {
