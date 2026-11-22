@@ -60,9 +60,11 @@ Have the game load the next cutscene in the background while it keeps playing (p
 - The dump shows no separate reflection camera: the frame draws the ripple map (256x256), a 32x32 and a 48x48 pass, an 8x8 pass at EFB x 514 (most likely the sun-visibility test the game reads back with EFB peeks), then the scene. The water's texgens use world-space matrices (0x84, 0xA8) and post matrices 0x584 / 0x5D8, not a screen projection, so the screen-copy idea above looks less likely.
 - Edges cull again while the game turns the player around at a map boundary. That camera probably doesn't go through the camera update (0x7F3AA460) the HLE widens; MTXPerspective's third caller (0x7F59EB10) is a candidate.
 
+- Crash (log 23:20:46, 21:9): 1.6 s after the first widened frames, on a loading frame, fiber 4 read an unmapped address (5C06CA09) at 0x7F3E5FB0 (inside 0x7F203E28, a reader called from 0x7F3E6AAC). The earlier runs with the texgen clamp didn't crash. Likely the same overflow that makes the texgen count 9: some per-frame list sized for the 4:3 view takes more entries than it holds and corrupts memory. The clamp hides the symptom in the renderer, not the overflow. GXSetNumTexGens (0x7F63772C) callers with computed counts: 0x7F2F2FBC (r26 = 4 or 5), 0x7F3B5474 (`lbz r3,7(r28)`); the 9 seen so far came through display lists called from main.dol (0x8000902C) and the 0x7F395998 / 0x7F399520 path.
+
 ### Next
 
-Compare with wide culling off at the same spot (is the water dark there too?). Get a real picture of it (F10 only dumps GX commands), compare the water's texgen matrices with and without wide culling, and see which texgen reads the screen copy.
+Find that list (follow where the 9 is computed) and give it room. Compare with wide culling off at the same spot (is the water dark there too?). Get a real picture of it (F10 only dumps GX commands), compare the water's texgen matrices with and without wide culling, and see which texgen reads the screen copy.
 
 ### Stutter comes first
 
