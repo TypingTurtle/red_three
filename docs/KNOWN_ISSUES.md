@@ -33,6 +33,8 @@ Find what in Aurora or the bridge depends on the old placement for the shadow pa
 
 ## Short pauses at cuts into cutscenes and at the hangar launch
 
+**Idle skip (November 2026, needs a test on a real PC):** most of a pause was the game idling - waiting for retraces across its video mode switch and for disc and ARAM completions. While the VI is off or no frame has come for 40 ms, an idle wait for an event at most 50 ms away now jumps the guest clock to it (`idleSkip` in events.cpp, part of Fast loading; `R2_NO_IDLE_SKIP=1` turns it off). The stall reports say how much was skipped. It can't be measured in the cloud (its software renderer is too slow).
+
 The picture holds for about 0.13–0.15 s when a mission cuts to a cutscene (Relics of Geonosis: the ships arriving, the transport leaving) and for a few frames at the hangar launch. It's noticeable at 60 fps.
 
 ### What's known
@@ -70,9 +72,11 @@ Lines along every water tile's edge at 16:9 "Window size" (none at 4:3 or 1440p)
 
 - Crash (log 23:20:46, 21:9): 1.6 s after the first widened frames, on a loading frame, fiber 4 read an unmapped address (5C06CA09) at 0x7F3E5FB0 (inside 0x7F203E28, a reader called from 0x7F3E6AAC). The earlier runs with the texgen clamp didn't crash. Likely the same overflow that makes the texgen count 9: some per-frame list sized for the 4:3 view takes more entries than it holds and corrupts memory. The clamp hides the symptom in the renderer, not the overflow. GXSetNumTexGens (0x7F63772C) callers with computed counts: 0x7F2F2FBC (r26 = 4 or 5), 0x7F3B5474 (`lbz r3,7(r28)`); the 9 seen so far came through display lists called from main.dol (0x8000902C) and the 0x7F395998 / 0x7F399520 path.
 
+Found and fixed (November 2026), from a headless run in the cloud from a save state, with R2_WATCH on the texgen counter: it isn't a list. The game's texgen allocator (0x7F3B55FC) has no limit, and with the wider camera some draws get a 9th texgen (more projected shadows or light layers on them, through 0x7F3D2250 and the layer loop 0x7F3C74A0). The SDK's GXSetTexCoordGen2 (0x7F6374AC) then indexed its 8-entry matrix-index jump table with 8 and jumped into whatever followed it. `hle GXSetTexCoordGen2` now drops a texcoord past 7 (logged as "GXSetTexCoordGen2 for texcoord 8 ... dropped"), and Aurora clamps the count (patch 0037). Runs from the save state and through the attract mode at 21:9 with wide culling no longer crash.
+
 ### Next
 
-Find that list (follow where the 9 is computed) and give it room. Compare with wide culling off at the same spot (is the water dark there too?). Get a real picture of it (F10 only dumps GX commands), compare the water's texgen matrices with and without wide culling, and see which texgen reads the screen copy.
+Check the water and the map-edge turn-around with wide culling on, then consider turning it on by default. Compare with wide culling off at the same spot (is the water dark there too?). Get a real picture of it (F10 only dumps GX commands), compare the water's texgen matrices with and without wide culling, and see which texgen reads the screen copy.
 
 ### Stutter comes first
 
