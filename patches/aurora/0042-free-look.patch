@@ -1,0 +1,109 @@
+diff --git a/include/dolphin/gx/GXAurora.h b/include/dolphin/gx/GXAurora.h
+index 0492b8f..b21553a 100644
+--- a/include/dolphin/gx/GXAurora.h
++++ b/include/dolphin/gx/GXAurora.h
+@@ -107,6 +107,14 @@ extern "C" {
+  */
+ #define GX_AURORA_SET_XFB_SCALE_X 0x003F
+ 
++/**
++ * Free look (Red Three experimental; the first step towards VR): the scene's 3D draws (perspective,
++ * centred on the screen, not into a render-to-texture viewport) are turned by a head rotation in
++ * view space, after the game's camera. Followed by:
++ *   f32 yaw (radians, positive: looking right), f32 pitch (radians, positive: looking up)
++ */
++#define GX_AURORA_SET_FREE_LOOK 0x0043
++
+ /**
+  * Widescreen: orthographic draws that follow take their coordinates as screen positions of the
+  * target as it is (e.g. corners a game projected from 3D with a camera already widened for the
+diff --git a/lib/gx/command_processor.cpp b/lib/gx/command_processor.cpp
+index 4772454..2868abf 100644
+--- a/lib/gx/command_processor.cpp
++++ b/lib/gx/command_processor.cpp
+@@ -1451,6 +1451,15 @@ void handle_aurora(ByteReader& reader) noexcept {
+   } else if (subCmd == GX_AURORA_SET_XFB_SCALE_X) {
+     const f32 scale = reader.read<f32>();
+     g_gxState.xfbScaleX = std::isfinite(scale) && scale > 0.f ? scale : 1.f;
++  } else if (subCmd == GX_AURORA_SET_FREE_LOOK) {
++    const f32 yaw = reader.read<f32>();
++    const f32 pitch = reader.read<f32>();
++    if (std::isfinite(yaw) && std::isfinite(pitch) &&
++        (yaw != g_gxState.freeLookYaw || pitch != g_gxState.freeLookPitch)) {
++      g_gxState.freeLookYaw = yaw;
++      g_gxState.freeLookPitch = pitch;
++      g_gxState.dirty |= DirtyUniform;
++    }
+   } else if (subCmd == GX_AURORA_SET_SCREEN_SPACE_2D) {
+     const bool on = reader.read<u8>() != 0;
+     if (on != g_gxState.screenSpace2D) {
+diff --git a/lib/gx/gx.cpp b/lib/gx/gx.cpp
+index ba8b281..13a1178 100644
+--- a/lib/gx/gx.cpp
++++ b/lib/gx/gx.cpp
+@@ -269,6 +269,14 @@ bool uniform_rtt_viewport(const gfx::Viewport& vp) noexcept {
+                      [&](const gfx::ClipRect& r) { return near_rect(vp.left, vp.top, vp.width, vp.height, r); });
+ }
+ 
++bool copy_source_viewport(const gfx::Viewport& vp) noexcept {
++  if (vp.width >= static_cast<float>(logical_fb_size().x) * 0.9f) {
++    return false;
++  }
++  return std::any_of(g_gxState.rttRects.begin(), g_gxState.rttRects.end(),
++                     [&](const gfx::ClipRect& r) { return near_rect(vp.left, vp.top, vp.width, vp.height, r); });
++}
++
+ bool uniform_copy_rect(const gfx::ClipRect& rect) noexcept {
+   if (g_gxState.viewportPolicy == AURORA_VIEWPORT_NATIVE || gfx::is_offscreen()) {
+     return false;
+diff --git a/lib/gx/gx.hpp b/lib/gx/gx.hpp
+index 216826b..7621781 100644
+--- a/lib/gx/gx.hpp
++++ b/lib/gx/gx.hpp
+@@ -398,6 +398,7 @@ struct GXState {
+   // GX_AURORA_SET_FILL_SCREEN: draws stretched out to the target's edges, and the NDC shift
+   // their projection carries
+   bool fillScreen = false;
++  float freeLookYaw = 0.f, freeLookPitch = 0.f;  // GX_AURORA_SET_FREE_LOOK (radians)
+   float fillShiftX = 0.f, fillShiftY = 0.f;
+   // AuroraSetWidenedAspects: perspective aspects the game already widened for the target
+   std::array<float, 8> widenedAspects{};
+@@ -526,6 +527,7 @@ gfx::ClipRect map_logical_scissor(const gfx::ClipRect& logicalScissor) noexcept;
+ gfx::ClipRect map_logical_scissor(const gfx::ClipRect& logicalScissor, int uniform) noexcept;
+ bool uniform_rtt_viewport(const gfx::Viewport& logicalViewport) noexcept;
+ bool uniform_copy_rect(const gfx::ClipRect& logicalRect) noexcept;
++bool copy_source_viewport(const gfx::Viewport& logicalViewport) noexcept;  // (free look: not the scene)
+ void set_logical_viewport(const gfx::Viewport& viewport) noexcept;
+ void set_render_viewport(const gfx::Viewport& viewport) noexcept;
+ void set_logical_scissor(const gfx::ClipRect& scissor) noexcept;
+diff --git a/lib/gx/shader_info.cpp b/lib/gx/shader_info.cpp
+index dae53e5..d0bc84f 100644
+--- a/lib/gx/shader_info.cpp
++++ b/lib/gx/shader_info.cpp
+@@ -499,6 +499,26 @@ static Mat4x4<float> draw_projection() noexcept {
+     proj.m2 = proj.m2 + proj.m3;
+   }
+   apply_widescreen_scale(proj);
++  // Free look: the scene's camera turned by the head (view space: p' = Rx(-pitch) Ry(yaw) p)
++  if ((g_gxState.freeLookYaw != 0.f || g_gxState.freeLookPitch != 0.f) && g_gxState.projType != GX_ORTHOGRAPHIC &&
++      std::abs(g_gxState.proj.m0[2]) < 0.05f && std::abs(g_gxState.proj.m1[2]) < 0.05f &&
++      !copy_source_viewport(g_gxState.logicalViewport)) {
++    const float cy = std::cos(g_gxState.freeLookYaw), sy = std::sin(g_gxState.freeLookYaw);
++    const float cp = std::cos(-g_gxState.freeLookPitch), sp = std::sin(-g_gxState.freeLookPitch);
++    // R = Rx(-pitch) * Ry(yaw), rows
++    const Vec4<float> r0{cy, 0.f, sy, 0.f};
++    const Vec4<float> r1{sp * sy, cp, -sp * cy, 0.f};
++    const Vec4<float> r2{-cp * sy, sp, cp * cy, 0.f};
++    const Vec4<float> r3{0.f, 0.f, 0.f, 1.f};
++    const auto mul = [&](const Vec4<float>& m) {
++      return r0 * Vec4{m[0], m[0], m[0], m[0]} + r1 * Vec4{m[1], m[1], m[1], m[1]} + r2 * Vec4{m[2], m[2], m[2], m[2]} +
++             r3 * Vec4{m[3], m[3], m[3], m[3]};
++    };
++    proj.m0 = mul(proj.m0);
++    proj.m1 = mul(proj.m1);
++    proj.m2 = mul(proj.m2);
++    proj.m3 = mul(proj.m3);
++  }
+   return proj;
+ }
+ 

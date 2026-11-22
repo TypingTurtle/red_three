@@ -22,6 +22,7 @@
 #include <SDL3/SDL_hints.h>
 #include <SDL3/SDL_init.h>
 #include <SDL3/SDL_keyboard.h>
+#include <SDL3/SDL_mouse.h>
 #include <SDL3/SDL_properties.h>
 #include <SDL3/SDL_timer.h>
 #include <SDL3/SDL_video.h>
@@ -256,10 +257,55 @@ void gpSync() {
     if (s_gxThread && s_inFrame) fifo::drain();
 }
 
+// Free look (experimental; the first step towards VR): hold the right mouse button and move the
+// mouse to look around the cockpit while the craft flies on; a middle click looks ahead again.
+// The renderer turns the scene's 3D draws (Aurora patch 0042). R2_FREELOOK_TEST=<yaw>,<pitch>
+// (degrees) holds a fixed look (tests). R2_NO_FREELOOK=1 turns it off.
+void freeLookFrame() {
+    static const bool off = envFlag("R2_NO_FREELOOK");
+    if (off) return;
+    static float yaw = 0.f, pitch = 0.f, sentYaw = 0.f, sentPitch = 0.f;
+    static bool test = false;
+    static bool once = [] {
+        if (const char* t = getenv("R2_FREELOOK_TEST")) {
+            float y = 0, p = 0;
+            if (sscanf(t, "%f,%f", &y, &p) >= 1) yaw = y * 0.01745329f, pitch = p * 0.01745329f, test = true;
+        }
+        return true;
+    }();
+    (void)once;
+    if (!test) {
+        static float lastX = 0.f, lastY = 0.f;
+        static bool held = false;
+        float x = 0.f, y = 0.f;
+        const SDL_MouseButtonFlags b = SDL_GetMouseState(&x, &y);
+        if ((b & SDL_BUTTON_RMASK) && !gfx::menuOpen()) {
+            if (held) {
+                yaw += (x - lastX) * 0.0035f;
+                pitch -= (y - lastY) * 0.0035f;
+                yaw = std::clamp(yaw, -2.6f, 2.6f);    // about 150 degrees each way
+                pitch = std::clamp(pitch, -1.4f, 1.4f);  // about 80 degrees up and down
+            }
+            held = true;
+            lastX = x, lastY = y;
+        } else {
+            held = false;
+        }
+        if (b & SDL_BUTTON_MMASK) yaw = pitch = 0.f;
+    }
+    if (yaw != sentYaw || pitch != sentPitch) {
+        sentYaw = yaw, sentPitch = pitch;
+        aur(GX_AURORA_SET_FREE_LOOK);
+        fifo::write_f32(yaw);
+        fifo::write_f32(pitch);
+    }
+}
+
 void ensureFrame() {
     if (s_inFrame) return;
     pollEvents();
     s_inFrame = aurora_begin_frame();
+    if (s_inFrame) freeLookFrame();
     if (s_inFrame && s_testClear) {
         aur(GX_AURORA_CLEAR);
         fifo::write_u8(0x0F);  // whole target, color, alpha, depth
