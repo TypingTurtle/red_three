@@ -1,0 +1,210 @@
+--- a/lib/gx/gx.cpp
++++ b/lib/gx/gx.cpp
+@@ -15,6 +15,7 @@
+ #include <absl/container/flat_hash_map.h>
+ #include <tracy/Tracy.hpp>
+ 
++#include <algorithm>
+ #include <atomic>
+ #include <bit>
+ #include <cfloat>
+@@ -236,19 +237,59 @@
+   return gfx::is_offscreen() ? gfx::get_render_target_size() : vi::configured_fb_size();
+ }
+ 
+-gfx::Viewport map_logical_viewport(const gfx::Viewport& logicalViewport) noexcept {
+-  if (g_gxState.viewportPolicy == AURORA_VIEWPORT_NATIVE) {
+-    return logicalViewport;
+-  }
++// A render-to-texture pass (a viewport that is the source of a texture copy, smaller than the
++// frame) is drawn at one scale on both axes, the smaller of the target's: on a widened target
++// the horizontal scale is fractional (16:9 at 5x: 6.67), and the copied texture got a sliver at
++// its edge. Rebel Strike's water tiles its 256x256 ripple map: a line along every tile's edge at
++// 16:9 "Window size", none at 4:3 or 1440p (whole scales).
++namespace {
++bool near_rect(float x, float y, float w, float h, const gfx::ClipRect& r) noexcept {
++  return r.width > 0 && std::abs(x - static_cast<float>(r.x)) <= 2.f && std::abs(y - static_cast<float>(r.y)) <= 2.f &&
++         std::abs(w - static_cast<float>(r.width)) <= 2.f && std::abs(h - static_cast<float>(r.height)) <= 2.f;
++}
+ 
++bool target_scales(float& scaleX, float& scaleY) noexcept {
+   const auto [logicalFbWidth, logicalFbHeight] = logical_fb_size();
+   const auto [targetWidth, targetHeight] = gfx::get_render_target_size();
+   if (logicalFbWidth == 0 || logicalFbHeight == 0 || targetWidth == 0 || targetHeight == 0) {
+-    return logicalViewport;
++    return false;
+   }
++  scaleX = static_cast<float>(targetWidth) / static_cast<float>(logicalFbWidth);
++  scaleY = static_cast<float>(targetHeight) / static_cast<float>(logicalFbHeight);
++  return true;
++}
++} // namespace
++
++bool uniform_rtt_viewport(const gfx::Viewport& vp) noexcept {
++  if (g_gxState.viewportPolicy == AURORA_VIEWPORT_NATIVE || gfx::is_offscreen() ||
++      vp.width >= static_cast<float>(logical_fb_size().x) * 0.9f) {
++    return false;
++  }
++  return std::any_of(g_gxState.scratchRects.begin(), g_gxState.scratchRects.end(),
++                     [&](const gfx::ClipRect& r) { return near_rect(vp.left, vp.top, vp.width, vp.height, r); });
++}
++
++bool uniform_copy_rect(const gfx::ClipRect& rect) noexcept {
++  if (g_gxState.viewportPolicy == AURORA_VIEWPORT_NATIVE || gfx::is_offscreen()) {
++    return false;
++  }
++  return std::any_of(g_gxState.uniformRects.begin(), g_gxState.uniformRects.end(), [&](const gfx::ClipRect& r) {
++    return near_rect(static_cast<float>(rect.x), static_cast<float>(rect.y), static_cast<float>(rect.width),
++                     static_cast<float>(rect.height), r);
++  });
++}
+ 
+-  const float scaleX = static_cast<float>(targetWidth) / static_cast<float>(logicalFbWidth);
+-  const float scaleY = static_cast<float>(targetHeight) / static_cast<float>(logicalFbHeight);
++gfx::Viewport map_logical_viewport(const gfx::Viewport& logicalViewport) noexcept {
++  if (g_gxState.viewportPolicy == AURORA_VIEWPORT_NATIVE) {
++    return logicalViewport;
++  }
++  float scaleX = 1.f, scaleY = 1.f;
++  if (!target_scales(scaleX, scaleY)) {
++    return logicalViewport;
++  }
++  if (uniform_rtt_viewport(logicalViewport)) {
++    scaleX = scaleY = std::min(scaleX, scaleY);
++  }
+   return {
+       .left = logicalViewport.left * scaleX,
+       .top = logicalViewport.top * scaleY,
+@@ -260,18 +301,21 @@
+ }
+ 
+ gfx::ClipRect map_logical_scissor(const gfx::ClipRect& logicalScissor) noexcept {
++  return map_logical_scissor(logicalScissor, -1);
++}
++
++gfx::ClipRect map_logical_scissor(const gfx::ClipRect& logicalScissor, int uniform) noexcept {
+   if (g_gxState.viewportPolicy == AURORA_VIEWPORT_NATIVE) {
+     return logicalScissor;
+   }
+-
+-  const auto [logicalFbWidth, logicalFbHeight] = logical_fb_size();
+-  const auto [targetWidth, targetHeight] = gfx::get_render_target_size();
+-  if (logicalFbWidth == 0 || logicalFbHeight == 0 || targetWidth == 0 || targetHeight == 0) {
++  float scaleX = 1.f, scaleY = 1.f;
++  if (!target_scales(scaleX, scaleY)) {
+     return logicalScissor;
+   }
+-
+-  const float scaleX = static_cast<float>(targetWidth) / static_cast<float>(logicalFbWidth);
+-  const float scaleY = static_cast<float>(targetHeight) / static_cast<float>(logicalFbHeight);
++  const auto [targetWidth, targetHeight] = gfx::get_render_target_size();
++  if (uniform < 0 ? uniform_rtt_viewport(g_gxState.logicalViewport) : uniform > 0) {
++    scaleX = scaleY = std::min(scaleX, scaleY);
++  }
+ 
+   const float left = static_cast<float>(logicalScissor.x) * scaleX;
+   const float top = static_cast<float>(logicalScissor.y) * scaleY;
+@@ -301,6 +345,16 @@
+   }
+   g_gxState.logicalViewport = viewport;
+   set_render_viewport(map_logical_viewport(viewport));
++  // the scissor follows the viewport's scale (one scale on both axes for render-to-texture)
++  set_render_scissor(map_logical_scissor(g_gxState.logicalScissor));
++  if (uniform_rtt_viewport(viewport)) {
++    const gfx::ClipRect r{static_cast<int32_t>(std::lround(viewport.left)), static_cast<int32_t>(std::lround(viewport.top)),
++                          static_cast<int32_t>(std::lround(viewport.width)),
++                          static_cast<int32_t>(std::lround(viewport.height))};
++    if (!uniform_copy_rect(r)) {
++      g_gxState.uniformRects[g_gxState.uniformRectNext++ % g_gxState.uniformRects.size()] = r;
++    }
++  }
+ }
+ 
+ void set_render_viewport(const gfx::Viewport& viewport) noexcept {
+--- a/lib/gx/gx.hpp
++++ b/lib/gx/gx.hpp
+@@ -447,6 +447,14 @@
+   // as 2D in widescreen, a line along every water tile's edge)
+   std::array<gfx::ClipRect, 32> rttRects{};
+   u32 rttRectNext = 0;
++  // Render-to-texture viewports drawn at one scale on both axes (uniform_rtt_viewport, gx.cpp):
++  // copies of these rectangles are read back at that scale too
++  std::array<gfx::ClipRect, 32> uniformRects{};
++  u32 uniformRectNext = 0;
++  // Source rectangles of texture copies that clear (scratch areas, overdrawn by the frame: only
++  // these are drawn at one scale - a copied rectangle that stays in the picture keeps its place)
++  std::array<gfx::ClipRect, 32> scratchRects{};
++  u32 scratchRectNext = 0;
+   GXTexFmt texCopyFmt;
+   u32 texCopyDstWidth = 0;
+   u32 texCopyDstHeight = 0;
+@@ -514,6 +522,10 @@
+ Vec2<uint32_t> logical_fb_size() noexcept;
+ gfx::Viewport map_logical_viewport(const gfx::Viewport& logicalViewport) noexcept;
+ gfx::ClipRect map_logical_scissor(const gfx::ClipRect& logicalScissor) noexcept;
++// uniform: -1 follows the current viewport, 0 the target's own scales, 1 one scale on both axes
++gfx::ClipRect map_logical_scissor(const gfx::ClipRect& logicalScissor, int uniform) noexcept;
++bool uniform_rtt_viewport(const gfx::Viewport& logicalViewport) noexcept;
++bool uniform_copy_rect(const gfx::ClipRect& logicalRect) noexcept;
+ void set_logical_viewport(const gfx::Viewport& viewport) noexcept;
+ void set_render_viewport(const gfx::Viewport& viewport) noexcept;
+ void set_logical_scissor(const gfx::ClipRect& scissor) noexcept;
+--- a/lib/dolphin/gx/GXFrameBuffer.cpp
++++ b/lib/dolphin/gx/GXFrameBuffer.cpp
+@@ -12,7 +12,7 @@
+ #include <cmath>
+ 
+ namespace {
+-aurora::Vec2<uint32_t> scale_copy_dst(u32 logicalWidth, u32 logicalHeight) {
++aurora::Vec2<uint32_t> scale_copy_dst(u32 logicalWidth, u32 logicalHeight, bool uniform = false) {
+   if (g_gxState.viewportPolicy == AURORA_VIEWPORT_NATIVE) {
+     return {logicalWidth, logicalHeight};
+   }
+@@ -23,8 +23,11 @@
+     return {logicalWidth, logicalHeight};
+   }
+ 
+-  const float scaleX = static_cast<float>(targetWidth) / static_cast<float>(logicalFbWidth);
+-  const float scaleY = static_cast<float>(targetHeight) / static_cast<float>(logicalFbHeight);
++  float scaleX = static_cast<float>(targetWidth) / static_cast<float>(logicalFbWidth);
++  float scaleY = static_cast<float>(targetHeight) / static_cast<float>(logicalFbHeight);
++  if (uniform) {
++    scaleX = scaleY = std::min(scaleX, scaleY);
++  }
+   const auto scaledWidth = std::max<u32>(static_cast<u32>(std::lround(static_cast<float>(logicalWidth) * scaleX)), 1);
+   const auto scaledHeight = std::max<u32>(static_cast<u32>(std::lround(static_cast<float>(logicalHeight) * scaleY)), 1);
+   return {scaledWidth, scaledHeight};
+@@ -107,8 +110,14 @@
+     if (!known) {
+       rects[g_gxState.rttRectNext++ % rects.size()] = src;
+     }
++    auto& scratch = g_gxState.scratchRects;
++    if (clear && std::find(scratch.begin(), scratch.end(), src) == scratch.end()) {
++      scratch[g_gxState.scratchRectNext++ % scratch.size()] = src;
++    }
+   }
+-  const auto rect = map_logical_scissor(g_gxState.texCopySrc);
++  // a render-to-texture pass drawn at one scale on both axes is read back at that scale
++  const bool uniform = uniform_copy_rect(g_gxState.texCopySrc);
++  const auto rect = map_logical_scissor(g_gxState.texCopySrc, uniform ? 1 : 0);
+   u32 firstRow = 0;
+   if (auto* outer = enclosing_copy(dest, g_gxState.texCopyDstWidth, g_gxState.texCopyDstHeight,
+                                    g_gxState.texCopyFmt, firstRow)) {
+@@ -129,7 +138,7 @@
+       return;
+     }
+   }
+-  const auto [dstWidth, dstHeight] = scale_copy_dst(g_gxState.texCopyDstWidth, g_gxState.texCopyDstHeight);
++  const auto [dstWidth, dstHeight] = scale_copy_dst(g_gxState.texCopyDstWidth, g_gxState.texCopyDstHeight, uniform);
+   const auto texCopyFmt = g_gxState.texCopyFmt;
+   const auto copy = texture::resolve_copy_texture({
+       .dest = dest,
+@@ -154,7 +163,7 @@
+     return;
+   }
+ 
+-  const auto rect = map_logical_scissor(g_gxState.dispCopySrc);
++  const auto rect = map_logical_scissor(g_gxState.dispCopySrc, 0);
+   const auto clearColor = clear && g_gxState.colorUpdate;
+   const auto clearAlpha = clear && g_gxState.alphaUpdate && efb_has_alpha(g_gxState.pixelFmt);
+   const auto clearDepth = clear && g_gxState.depthUpdate;
