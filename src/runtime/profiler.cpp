@@ -256,7 +256,12 @@ std::atomic<u64> s_lastPresent{0};
 
 #ifdef _WIN32
 void stallWatchdog(HANDLE thread) {
-    constexpr u64 kStall = kTbClock / 4;        // 250 ms without a frame
+    // 250 ms without a frame (R2_STALL_MS=<ms>: another threshold, e.g. 100 for shorter hitches)
+    static const u64 kStall = [] {
+        const char* e = getenv("R2_STALL_MS");
+        const double ms = e ? atof(e) : 250.0;
+        return u64((ms >= 30.0 ? ms : 250.0) * double(kTbClock) / 1000.0);
+    }();
     constexpr u64 kInterim = 10 * kTbClock;     // a longer one is reported every 10 s meanwhile
     for (;;) {
         Sleep(20);
