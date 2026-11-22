@@ -247,7 +247,7 @@ void guardCacheAgainstCrashes(std::string dir) {
     }
 }
 
-void markSessionClean() {
+void sessionClean() {
     if (s_sessionMarker.empty()) return;
     std::error_code ec;
     std::filesystem::remove(s_sessionMarker, ec);
@@ -1705,6 +1705,8 @@ void tileFrameEnd() {
             it = s_frames - it->second.lastFrame > 120 ? s_tileTex.erase(it) : std::next(it);
 }
 }  // namespace
+
+void markSessionClean() { sessionClean(); }
 
 void setMenuTiling(bool on) {
     if (on == s_menuTiling) return;
