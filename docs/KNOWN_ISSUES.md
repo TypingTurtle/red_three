@@ -56,9 +56,13 @@ Have the game load the next cutscene in the background while it keeps playing (p
 - With wide culling, the camera's projection reaches Aurora already widened (aspect 2.528 at 21:9) and Aurora leaves it alone. Without it, Aurora widens the 4:3 projection itself. If one of the water's texgens maps positions to the screen copy with a matrix built from the camera, the two cases sample the copy differently.
 - An F10 dump over water with wide culling on: `gx_frame_3157.txt` (first level, 21:9).
 
+- Screenshot (21:9, first level): the river is almost black, with faint diagonal lines where the water's tiles meet.
+- The dump shows no separate reflection camera: the frame draws the ripple map (256x256), a 32x32 and a 48x48 pass, an 8x8 pass at EFB x 514 (most likely the sun-visibility test the game reads back with EFB peeks), then the scene. The water's texgens use world-space matrices (0x84, 0xA8) and post matrices 0x584 / 0x5D8, not a screen projection, so the screen-copy idea above looks less likely.
+- Edges cull again while the game turns the player around at a map boundary. That camera probably doesn't go through the camera update (0x7F3AA460) the HLE widens; MTXPerspective's third caller (0x7F59EB10) is a candidate.
+
 ### Next
 
-Get a real picture of it (F10 only dumps GX commands), compare the water's texgen matrices with and without wide culling, and see which texgen reads the screen copy.
+Compare with wide culling off at the same spot (is the water dark there too?). Get a real picture of it (F10 only dumps GX commands), compare the water's texgen matrices with and without wide culling, and see which texgen reads the screen copy.
 
 ### Stutter comes first
 
