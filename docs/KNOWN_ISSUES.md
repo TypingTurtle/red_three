@@ -46,6 +46,14 @@ The picture holds for about 0.13–0.15 s when a mission cuts to a cutscene (Rel
 
 Have the game load the next cutscene in the background while it keeps playing (prefetch its resources ahead of the trigger), or come back with fresh ideas once more of the game is understood.
 
+## One-off crash on the title screen (unconfirmed)
+
+Log 23:41:25 (play.bat, 16:9, the build with Aurora patch 0041): the game's own code read address 4 at 0x80006800 (called from 0x80007A18, a per-frame walk over an engine list; 0x800078E8 < 0x7F3B73F8) while buttons were being pressed on the title screen. The next launch of the same build was fine. If it comes back, take patches 0039-0041 out one at a time.
+
+## Water lines at fractional widescreen scales (fixed)
+
+Lines along every water tile's edge at 16:9 "Window size" (none at 4:3 or 1440p): the ripple map was drawn and copied at a fractional horizontal scale (6.67 at 5x). Patch 0041 draws scratch render-to-texture passes at one scale on both axes. Confirmed fixed.
+
 ## Wide culling (issue #1): water looks off
 
 `R2_WIDE_CULLING=1` widens the game's own camera so objects at the sides of 21:9 and 16:9 screens are no longer culled. It plays through Geonosis without crashing now (the crash was a texgen count of 9, clamped in `patches/aurora/0037`), and the edges look right. But the water looks wrong with it on and fine with it off, so it stays off by default.
