@@ -208,6 +208,7 @@ set(R2_RUNTIME_SOURCES
     src/runtime/input.cpp
     src/runtime/gyro.cpp
     src/runtime/hotas.cpp
+    src/runtime/netplay.cpp
     src/runtime/settings.cpp
     src/runtime/hle_game_${_r2_game_lc}.cpp
     src/runtime/mods.cpp

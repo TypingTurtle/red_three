@@ -51,6 +51,7 @@
 #include "mods.h"
 #include "achievements.h"
 #include "runtime.h"
+#include "netplay.h"
 #include "game.h"
 #include "update.h"
 #include "settings.h"
@@ -1101,6 +1102,7 @@ int main(int argc, char** argv) {
         input::init(false);  // scripted input still works without a renderer
     }
     if (!discOpen(disc)) fatal("cannot open the disc image %s", disc.c_str());
+    netplay::start(argc, argv);  // (experimental) online multiplayer: connects before the game boots
     loadFst();
     Ctx* boot = nullptr;
     threadsInit(boot);

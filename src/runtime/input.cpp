@@ -23,6 +23,7 @@
 
 #include "gyro.h"
 #include "hotas.h"
+#include "netplay.h"
 #include "hw/gx_fifo.h"
 #include "hotkeys.h"
 #include "runtime.h"
@@ -824,6 +825,7 @@ void poll() {
         p.triggerL = st[i].triggerLeft;
         p.triggerR = st[i].triggerRight;
     }
+    netplay::exchange();  // (experimental) online: both players' controllers, the same on both machines
 }
 
 }  // namespace rt::input

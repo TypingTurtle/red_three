@@ -72,6 +72,7 @@ void codesInit();                      // load codes.ini
 std::vector<Code> codesSnapshot();     // the list, for the menu
 void setCodeEnabled(size_t index, bool on);  // toggles one and saves codes.ini
 void mergeCodes(const std::vector<Code>& add);  // imported codes (replacing same kind + name); saves
+void setCodesEnabled(bool on);       // false: no codes are applied (netplay)
 void codesFrame();                     // once per retrace: apply the enabled codes
 // Dolphin's GameSettings sections ([Gecko], [Gecko_Enabled], [Gecko_Disabled], [ActionReplay],
 // [OnFrame], ...) merged into `out`: definitions replace those of the same kind and name; the

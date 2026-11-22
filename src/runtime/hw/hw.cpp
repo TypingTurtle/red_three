@@ -1426,6 +1426,7 @@ static u16 miRead(u32 off) { return mi[(off & 0xFF) / 2]; }
 static void miWrite(u32 off, u16 v) { mi[(off & 0xFF) / 2] = v; }
 
 u32 ioRead(u32 a, int size) {
+    detAdvance(20);  // (deterministic clock: a register read takes 0.5 us - polling loops see time pass)
     if (a < 0xCC000000u) {
         noteAccess("EFB", a, false, 0);
         return 0;

@@ -38,6 +38,10 @@ std::mutex s_mu;
 std::atomic<u64> s_earliest{~0ull};
 // Idle skip (idleWait): time the guest clock was moved ahead of the host's
 std::atomic<u64> s_warp{0};
+// Deterministic guest clock (setDeterministic, below)
+std::atomic<bool> s_det{false};
+std::atomic<u64> s_virt{0};
+s64 s_virtAhead = 0;  // guest clock minus host clock at the last pacing point
 
 u64 s_decBaseTb = 0;
 u32 s_decValue = 0;
@@ -121,6 +125,10 @@ void raisePending() {
 
 void timerThread() {
     for (;;) {
+        if (s_det.load(std::memory_order_relaxed)) {  // (the guest keeps its own clock)
+            sleepUs(20000, true);
+            continue;
+        }
         const u64 e = s_earliest.load();
         const u64 now = tbNow();
         if (e <= now) {
@@ -147,12 +155,12 @@ void timerThread() {
 }  // namespace
 
 #ifdef _WIN32
-u64 tbNow() {
+static u64 rawTb() {
     LARGE_INTEGER t;
     QueryPerformanceCounter(&t);
     const u64 d = u64(t.QuadPart - s_qpcStart.QuadPart);
     const u64 f = u64(s_qpcFreq.QuadPart);
-    return (d / f) * kTbClock + (d % f) * kTbClock / f + s_warp.load(std::memory_order_relaxed);
+    return (d / f) * kTbClock + (d % f) * kTbClock / f;
 }
 
 void eventsInit() {
@@ -166,12 +174,11 @@ void eventsInit() {
     std::thread(timerThread).detach();
 }
 #else
-u64 tbNow() {
+static u64 rawTb() {
     timespec t;
     clock_gettime(CLOCK_MONOTONIC, &t);
     const u64 ns = u64(t.tv_sec - s_start.tv_sec) * 1000000000ull + u64(t.tv_nsec) - u64(s_start.tv_nsec);
-    return (ns / 1000000000ull) * kTbClock + (ns % 1000000000ull) * kTbClock / 1000000000ull +
-           s_warp.load(std::memory_order_relaxed);
+    return (ns / 1000000000ull) * kTbClock + (ns % 1000000000ull) * kTbClock / 1000000000ull;
 }
 
 void eventsInit() {
@@ -182,6 +189,39 @@ void eventsInit() {
     }).detach();
 }
 #endif
+
+// --- deterministic time (experimental: netplay) ---------------------------------------------
+// The guest clock stops being the host's: it stands still while the guest computes and moves
+// only where the guest itself looks at time (time base and decrementer reads, hardware register
+// reads: a little each) and when it idles (straight to the next event, after the host has caught
+// up with it in real time: pacing). Events then fire at the same points of the guest's execution
+// on every machine, so two instances fed the same controller input run the same game.
+
+u64 tbNow() {
+    if (s_det.load(std::memory_order_relaxed)) return s_virt.load(std::memory_order_relaxed);
+    return rawTb() + s_warp.load(std::memory_order_relaxed);
+}
+
+u64 tbHostNow() { return rawTb(); }
+
+bool deterministic() { return s_det.load(std::memory_order_relaxed); }
+
+void setDeterministic(bool on) {
+    if (on == s_det.load()) return;
+    if (on) {
+        s_virt = rawTb() + s_warp.load();
+        s_virtAhead = s64(s_virt.load()) - s64(rawTb());
+    }
+    s_det = on;
+    logf("time", "deterministic guest clock %s", on ? "on" : "off");
+}
+
+// the guest looked at time (or polled a device): its clock moves on a little
+void detAdvance(u64 ticks) {
+    if (!s_det.load(std::memory_order_relaxed)) return;
+    const u64 v = s_virt.fetch_add(ticks, std::memory_order_relaxed) + ticks;
+    if (v >= s_earliest.load(std::memory_order_relaxed)) g_irqPending = 1;
+}
 
 void schedule(int id, u64 at) {
     if (!at) at = 1;
@@ -204,8 +244,6 @@ void wakeGuest() { raisePending(); }
 
 u64 g_idleWaits = 0;  // R2_GX_LOG statistics
 
-u64 tbHostNow() { return tbNow() - s_warp.load(std::memory_order_relaxed); }
-
 u64 g_warpTb = 0;  // total idle skip (R2_GX_LOG / the session log)
 
 // Idle skip: while the game shows nothing new - the VI is off (a video mode switch) or no frame
@@ -216,7 +254,7 @@ u64 g_warpTb = 0;  // total idle skip (R2_GX_LOG / the session log)
 // time nobody sees is skipped. Part of "Fast loading"; R2_NO_IDLE_SKIP=1 turns it off.
 static bool idleSkip(u64 now) {
     static const bool off = getenv("R2_NO_IDLE_SKIP") && atoi(getenv("R2_NO_IDLE_SKIP"));
-    if (off || !settings::get().fastDisc) return false;
+    if (off || !settings::get().fastDisc || s_det.load(std::memory_order_relaxed)) return false;
     const u64 e = s_earliest.load();
     if (e == ~0ull || e <= now) return false;
     const u64 ms = kTbClock / 1000;
@@ -234,7 +272,41 @@ static bool idleSkip(u64 now) {
     return true;
 }
 
+// deterministic: the guest idles until the next event - wait until the host clock has caught
+// up with it (real-time pace), then the guest clock jumps there
+static void detIdle() {
+    const u64 e = s_earliest.load();
+    if (e == ~0ull) {  // nothing scheduled: nothing can wake the guest but the host
+        waitGuest(1);
+        return;
+    }
+    const u64 v = s_virt.load();
+    if (e > v) {
+        const s64 hostTarget = s64(e) - s_virtAhead;
+        const s64 host = s64(rawTb());
+        if (host < hostTarget) {
+            const u64 us = u64(hostTarget - host) * 1000000 / kTbClock;
+            if (us > 1500) sleepUs(us - 1000, false);
+            while (s64(rawTb()) < hostTarget) cpuRelax();
+        } else if (host - hostTarget > s64(kTbClock / 10)) {
+            s_virtAhead = s64(e) - host;  // more than 0.1 s behind: run on from here (slower), no catching up
+        }
+        s_virt = e;
+    }
+    g_irqPending = 1;
+}
+
 void idleWait(Ctx& c, u32 pc) {
+    if (s_det.load(std::memory_order_relaxed)) {
+        if (!g_irqPending && !g_irqLine) {
+            g_idleWaits++;
+            const u64 t0 = rawTb();
+            detIdle();
+            g_idleTb += rawTb() - t0;
+        }
+        poll(c, pc);
+        return;
+    }
     if (!g_irqPending && !g_irqLine && idleSkip(tbNow())) {
         g_irqPending = 1;  // the event is due now: run it at this poll
     }

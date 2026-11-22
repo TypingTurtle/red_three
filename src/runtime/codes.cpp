@@ -791,7 +791,11 @@ void mergeCodes(const std::vector<Code>& add) {
     saveLocked();
 }
 
+static bool s_codesSuspended = false;
+void setCodesEnabled(bool on) { s_codesSuspended = !on; }
+
 void codesFrame() {
+    if (s_codesSuspended) return;  // (netplay: the two machines' codes could differ)
     std::unique_lock lk(s_mutex, std::try_to_lock);  // (never wait on the menu)
     if (!lk.owns_lock()) return;
     for (const auto& c : s_codes) {

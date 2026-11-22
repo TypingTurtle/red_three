@@ -71,6 +71,7 @@ void dispatch(Ctx& c, u32 addr) {
 
 static u32 s_ring[64];
 static volatile u32 s_ringPos;
+constexpr u64 kTbReadStep = 8;  // deterministic clock: each time base read (0.2 us)
 static std::vector<u32> s_logFns;  // R2_LOGFN=addr,addr,...
 static std::vector<u32> s_logFnLr;  // the caller filter of each (0: any)
 static u32 s_watchLo = 0, s_watchHi = 0;
@@ -237,12 +238,12 @@ u32 mfspr(Ctx& c, u32 spr) {
     switch (spr) {
     case 18: return c.dsisr;
     case 19: return c.dar;
-    case 22: return decRead();
+    case 22: detAdvance(kTbReadStep); return decRead();
     case 26: return c.srr0;
     case 27: return c.srr1;
     case 272: case 273: case 274: case 275: return c.sprg[spr - 272];
-    case 268: return u32(tbNow() + s_tbOffset);
-    case 269: return u32((tbNow() + s_tbOffset) >> 32);
+    case 268: detAdvance(kTbReadStep); return u32(tbNow() + s_tbOffset);
+    case 269: detAdvance(kTbReadStep); return u32((tbNow() + s_tbOffset) >> 32);
     case 287: return 0x00083214;  // PVR: Gekko
     case 920: return s_spr[920] & ~0x0F000000u;  // HID2: DMA queue length 0
     case 921: return s_spr[921] & ~1u;           // WPAR: buffer empty
@@ -277,6 +278,7 @@ void mtspr(Ctx& c, u32 spr, u32 v) {
 }
 
 u32 mftb(Ctx&, u32 which) {
+    detAdvance(kTbReadStep);  // (deterministic clock: reading the time takes a little of it)
     const u64 t = tbNow() + s_tbOffset;
     return which == 269 ? u32(t >> 32) : u32(t);
 }

@@ -71,6 +71,11 @@ extern u64 g_idleTb;  // time the guest's host thread waited for the next event 
 constexpr u64 kBusClock = 162000000, kCpuClock = 486000000, kTbClock = kBusClock / 4;
 u64 tbNow();
 extern u64 g_warpTb;  // total idle skip (events.cpp)
+// Deterministic guest clock (events.cpp; experimental netplay): the guest's time moves only with
+// the guest (detAdvance where it reads time or polls hardware; idle jumps to the next event)
+void setDeterministic(bool on);
+bool deterministic();
+void detAdvance(u64 ticks);
 u64 tbHostNow();  // the host's clock in time base units (tbNow less any idle skip, events.cpp)                       // guest time base (40.5 MHz)
 void schedule(int id, u64 atTb);   // (re)arm event id at time base value
 void unschedule(int id);
