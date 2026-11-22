@@ -50,10 +50,10 @@ if (-not $ninja) { throw "ninja not found" }
 $auroraClean = -not (git -C "$root\extern\aurora" status --porcelain --untracked-files=no)
 foreach ($patch in Get-ChildItem "$root\patches\aurora\*.patch" -ErrorAction SilentlyContinue | Sort-Object Name) {
     if (-not $auroraClean) {
-        cmd /c "git -C `"$root\extern\aurora`" apply --reverse --check `"$($patch.FullName)`" 2>nul"
+        cmd /c "git -C `"$root\extern\aurora`" apply --ignore-whitespace --reverse --check `"$($patch.FullName)`" 2>nul"
         if ($LASTEXITCODE -eq 0) { continue }
     }
-    cmd /c "git -C `"$root\extern\aurora`" apply `"$($patch.FullName)`" 2>nul"
+    cmd /c "git -C `"$root\extern\aurora`" apply --ignore-whitespace `"$($patch.FullName)`" 2>nul"
     if ($LASTEXITCODE -eq 0) { Write-Host "applied $($patch.Name)"; continue }
     if ($auroraClean) { throw "could not apply $($patch.Name) to extern/aurora" }
     Write-Host "note: $($patch.Name) neither applies nor reverses on the modified extern/aurora (assumed applied)"
