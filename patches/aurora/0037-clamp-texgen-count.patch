@@ -1,0 +1,30 @@
+--- a/lib/gx/regs.cpp
++++ b/lib/gx/regs.cpp
+@@ -3,6 +3,7 @@
+ #include "gx_fmt.hpp"
+ #include "texture.hpp"
+ 
++#include <algorithm>
+ #include <bit>
+ #include <cmath>
+ 
+@@ -68,7 +69,8 @@
+ 
+ // genMode (0x00)
+ void bp_gen_mode(u8, u32 value) noexcept {
+-  g_gxState.numTexGens = reg_get(value, 4, 0);
++  // GX has 8 texgens; a larger count (some games send 9) would overrun the texgen tables
++  g_gxState.numTexGens = std::min<u32>(reg_get(value, 4, 0), MaxTexCoord);
+   g_gxState.numChans = reg_get(value, 3, 4);
+   g_gxState.numTevStages = reg_get(value, 4, 10) + 1;
+   u32 hwCull = reg_get(value, 2, 14);
+@@ -784,7 +786,8 @@
+ 
+ // numTexGens (0x3F)
+ void xf_num_texgens(u8, u32 value) noexcept {
+-  g_gxState.numTexGens = value;
++  // Only 4 bits exist, and GX has 8 texgens: clamp so the texgen tables can't be overrun
++  g_gxState.numTexGens = std::min<u32>(value & 0xF, MaxTexCoord);
+   g_gxState.bpRegValid.reset(0x00);
+ }
+ 
