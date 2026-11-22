@@ -3074,8 +3074,10 @@ void applyDisplaySettings() {
     applyDisplayAspect();
     AuroraSetUberShaders(uberShaderMode());
     AuroraSetForcedAnisotropy(u16(s.anisotropy));  // (Aurora patch 0030)
-    // widescreen: letterboxed cinematics fill the screen (4:3 keeps the original bars)
-    AuroraSetLetterboxFill(s.aspect != settings::Aspect::R4_3);
+    // widescreen: letterboxed cinematics fill the screen (4:3 keeps the original bars).
+    // R2_NO_LETTERBOX_FILL=1 keeps the bars in widescreen too (testing the cuts into cinematics)
+    static const bool noFill = envFlag("R2_NO_LETTERBOX_FILL");
+    AuroraSetLetterboxFill(!noFill && s.aspect != settings::Aspect::R4_3);
     if (SDL_Window* w = aurora_get_window()) {
         const bool full = (SDL_GetWindowFlags(w) & SDL_WINDOW_FULLSCREEN) != 0;
         if (full != s.fullscreen) SDL_SetWindowFullscreen(w, s.fullscreen);
