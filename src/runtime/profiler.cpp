@@ -266,7 +266,7 @@ void stallWatchdog(HANDLE thread) {
     for (;;) {
         Sleep(20);
         const u64 last = s_lastPresent.load(std::memory_order_relaxed);
-        if (!last || tbNow() - last < kStall) continue;
+        if (!last || tbHostNow() - last < kStall) continue;
         std::vector<StallSample> samples;
         u64 reported = last;
         while (s_lastPresent.load(std::memory_order_relaxed) == last) {
@@ -274,7 +274,7 @@ void stallWatchdog(HANDLE thread) {
             if (sampleStack(thread, s.f, kStallDepth)) samples.push_back(s);
             static const bool detail = envFlag("R2_STALL_DETAIL");  // (every millisecond)
             Sleep(detail ? 1 : 5);
-            const u64 now = tbNow();
+            const u64 now = tbHostNow();
             if (now - reported >= kInterim && s_lastPresent.load(std::memory_order_relaxed) == last) {
                 stallReport(samples, double(now - last) * 1000.0 / double(kTbClock), true);
                 samples.clear();
@@ -291,11 +291,11 @@ void stallWatchdog() {
     for (;;) {
         std::this_thread::sleep_for(std::chrono::milliseconds(20));
         const u64 last = s_lastPresent.load(std::memory_order_relaxed);
-        if (!last || tbNow() - last < kStall) continue;
+        if (!last || tbHostNow() - last < kStall) continue;
         u64 reported = last;
         while (s_lastPresent.load(std::memory_order_relaxed) == last) {
             std::this_thread::sleep_for(std::chrono::milliseconds(5));
-            const u64 now = tbNow();
+            const u64 now = tbHostNow();
             if (now - reported >= kInterim && s_lastPresent.load(std::memory_order_relaxed) == last) {
                 logf("stall", "still waiting: %.0f ms without a new frame (level %u)", double(now - last) * 1000.0 / double(kTbClock),
                      stallLevel());
@@ -303,8 +303,8 @@ void stallWatchdog() {
             }
         }
         const u64 next = s_lastPresent.load(std::memory_order_relaxed);
-        logf("stall", "frames again after %.0f ms without a new frame (level %u)", double(next - last) * 1000.0 / double(kTbClock),
-             stallLevel());
+        logf("stall", "frames again after %.0f ms without a new frame (level %u; idle skip so far %.0f ms)",
+             double(next - last) * 1000.0 / double(kTbClock), stallLevel(), double(g_warpTb) * 1000.0 / double(kTbClock));
     }
 }
 #endif
@@ -327,8 +327,10 @@ void diagStart() {
 #endif
 }
 
+u64 diagLastPresentTb() { return s_lastPresent.load(std::memory_order_relaxed); }
+
 void diagFramePresented(u32 draws, u64 presentTb) {
-    const u64 now = tbNow();
+    const u64 now = tbHostNow();
     s_lastPresent.store(now, std::memory_order_relaxed);
     PerfWindow& w = s_perf;
     if (!w.start) {

@@ -19,6 +19,7 @@
 #include <thread>
 
 #include "runtime.h"
+#include "settings.h"
 
 namespace rt {
 
@@ -35,6 +36,8 @@ timespec s_start{};
 u64 s_due[EV_COUNT];  // 0 = not scheduled
 std::mutex s_mu;
 std::atomic<u64> s_earliest{~0ull};
+// Idle skip (idleWait): time the guest clock was moved ahead of the host's
+std::atomic<u64> s_warp{0};
 
 u64 s_decBaseTb = 0;
 u32 s_decValue = 0;
@@ -149,7 +152,7 @@ u64 tbNow() {
     QueryPerformanceCounter(&t);
     const u64 d = u64(t.QuadPart - s_qpcStart.QuadPart);
     const u64 f = u64(s_qpcFreq.QuadPart);
-    return (d / f) * kTbClock + (d % f) * kTbClock / f;
+    return (d / f) * kTbClock + (d % f) * kTbClock / f + s_warp.load(std::memory_order_relaxed);
 }
 
 void eventsInit() {
@@ -167,7 +170,8 @@ u64 tbNow() {
     timespec t;
     clock_gettime(CLOCK_MONOTONIC, &t);
     const u64 ns = u64(t.tv_sec - s_start.tv_sec) * 1000000000ull + u64(t.tv_nsec) - u64(s_start.tv_nsec);
-    return (ns / 1000000000ull) * kTbClock + (ns % 1000000000ull) * kTbClock / 1000000000ull;
+    return (ns / 1000000000ull) * kTbClock + (ns % 1000000000ull) * kTbClock / 1000000000ull +
+           s_warp.load(std::memory_order_relaxed);
 }
 
 void eventsInit() {
@@ -200,7 +204,40 @@ void wakeGuest() { raisePending(); }
 
 u64 g_idleWaits = 0;  // R2_GX_LOG statistics
 
+u64 tbHostNow() { return tbNow() - s_warp.load(std::memory_order_relaxed); }
+
+u64 g_warpTb = 0;  // total idle skip (R2_GX_LOG / the session log)
+
+// Idle skip: while the game shows nothing new - the VI is off (a video mode switch) or no frame
+// has come for a while (loading at a cut into a cutscene) - and it only waits for the next timed
+// event (retraces, disc and ARAM completions), the guest clock jumps to that event. On Rebel
+// Strike's cuts the game thread idled ~85% of the 0.13 s pause, most of it in the frame flip's
+// VIWaitForRetrace loop (0x80009F68) across the mode switch. Frames keep their own pace: only
+// time nobody sees is skipped. Part of "Fast loading"; R2_NO_IDLE_SKIP=1 turns it off.
+static bool idleSkip(u64 now) {
+    static const bool off = getenv("R2_NO_IDLE_SKIP") && atoi(getenv("R2_NO_IDLE_SKIP"));
+    if (off || !settings::get().fastDisc) return false;
+    const u64 e = s_earliest.load();
+    if (e == ~0ull || e <= now) return false;
+    const u64 ms = kTbClock / 1000;
+    if (e - now > 50 * ms) return false;  // (a long wait is the game's own, not a load)
+    const u64 last = diagLastPresentTb(), host = tbHostNow();
+    const bool viOff = viXfbLines() == 0;
+    if (!viOff && (!last || host - last < 40 * ms)) return false;
+    // at most 150 ms per stretch without frames (the sound queue takes the burst)
+    static u64 stretchLast = 0, stretchWarp = 0;
+    if (stretchLast != last) stretchLast = last, stretchWarp = 0;
+    if (stretchWarp + (e - now) > 150 * ms) return false;
+    stretchWarp += e - now;
+    g_warpTb += e - now;
+    s_warp.fetch_add(e - now, std::memory_order_relaxed);
+    return true;
+}
+
 void idleWait(Ctx& c, u32 pc) {
+    if (!g_irqPending && !g_irqLine && idleSkip(tbNow())) {
+        g_irqPending = 1;  // the event is due now: run it at this poll
+    }
     if (!g_irqPending && !g_irqLine) {
         g_idleWaits++;
         // The timer thread signals when an event is due; the timeout only bounds a missed wake.

@@ -63,12 +63,15 @@ void profilerStart();  // profiler.cpp: R2_PROFILE=<seconds> (call on the guest'
 // profiler.cpp, always on: stall reports (no frame for 250 ms: where the game thread is) and a
 // perf line every 30 s. diagStart on the guest's host thread; diagFramePresented per frame.
 void diagStart();
-void diagFramePresented(u32 draws, u64 presentTb);  // presentTb: time in aurora_end_frame
+void diagFramePresented(u32 draws, u64 presentTb);
+u64 diagLastPresentTb();  // time base of the last frame the game presented (0: none yet)  // presentTb: time in aurora_end_frame
 extern u64 g_idleTb;  // time the guest's host thread waited for the next event (idleWait)
 
 // --- time and events ------------------------------------------------------------------
 constexpr u64 kBusClock = 162000000, kCpuClock = 486000000, kTbClock = kBusClock / 4;
-u64 tbNow();                       // guest time base (40.5 MHz)
+u64 tbNow();
+extern u64 g_warpTb;  // total idle skip (events.cpp)
+u64 tbHostNow();  // the host's clock in time base units (tbNow less any idle skip, events.cpp)                       // guest time base (40.5 MHz)
 void schedule(int id, u64 atTb);   // (re)arm event id at time base value
 void unschedule(int id);
 bool scheduled(int id);
