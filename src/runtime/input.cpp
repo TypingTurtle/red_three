@@ -22,6 +22,7 @@
 #include <vector>
 
 #include "gyro.h"
+#include "hotas.h"
 #include "hw/gx_fifo.h"
 #include "hotkeys.h"
 #include "runtime.h"
@@ -739,6 +740,7 @@ void poll() {
         logPort1();
         setUpControllers();
         PADRead(st);
+        hotas::apply(st, true);  // (experimental) a flight stick's axes and buttons
         if (s_curveTriggers[0] && st[0].err == PAD_ERR_NONE) {  // (the test's log: after the curve)
             PADStatus p1 = st[0];
             curveTrigger(p1.triggerRight, p1.button & PAD_TRIGGER_R);
