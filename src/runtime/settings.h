@@ -55,6 +55,7 @@ struct Settings {
     Resolution resolution = Resolution::Window;
     Aspect aspect = Aspect::R4_3;
     bool hudEdges = true;  // widescreen: the flight HUD at the screen edges
+    bool wideCulling = true;  // widescreen (Rebel Strike): the game's own camera widened, so it culls for the wide view
     bool tileMenus = true;  // widescreen: menu backgrounds continue into the sides
     // The game's own dither: a screen-space texture blended over every frame, sized for 640x480;
     // above that it shows as a coarse grid (the Hoth sky). Off like Dolphin's "Disable Dithering" code.
