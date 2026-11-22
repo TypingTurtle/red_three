@@ -767,9 +767,12 @@ static u32 bootDisc() {
 
 // The program is a Windows GUI app (no console window on a double-click). Its log goes to
 // stderr when the parent captured it (test runs), to the parent's console with --console, and
-// otherwise to a log of its own for every session: %APPDATA%\Red Two\logs\red_two_<date>_<time>.log
-// (the newest 30 are kept; red_two.log in the working directory if that folder cannot be made).
+// otherwise to a log of its own for every session: %APPDATA%\Red Two\logs\redthree_<date>_<time>.log
+// (the newest 30 are kept; redthree.log in the working directory if that folder cannot be made).
 static std::string s_sessionLog;
+
+// The session logs' name: redthree_<date>_<time>.log for Rebel Strike, red_two_... for Rogue Leader
+static std::string logPrefix() { return strcmp(rt::game::kGame.id, "GLRE64") ? "red_two" : "redthree"; }
 
 #ifndef _WIN32
 // Linux: the log goes to stderr when it is a terminal or a test run captured it, and otherwise
@@ -785,12 +788,13 @@ static void setupLogOutput(int, char**) {
         if (stat(dir.c_str(), &st) != 0 || !S_ISDIR(st.st_mode)) dir.clear();
     }
     if (dir.empty()) {
-        s_sessionLog = "red_two.log";
+        s_sessionLog = logPrefix() + ".log";
     } else {
         std::vector<std::string> old;
+        const std::string pre = logPrefix() + "_";
         if (DIR* d = opendir(dir.c_str())) {
             while (dirent* e = readdir(d))
-                if (!strncmp(e->d_name, "red_two_", 8) && strstr(e->d_name, ".log")) old.push_back(e->d_name);
+                if (!strncmp(e->d_name, pre.c_str(), pre.size()) && strstr(e->d_name, ".log")) old.push_back(e->d_name);
             closedir(d);
         }
         std::sort(old.begin(), old.end());
@@ -799,7 +803,7 @@ static void setupLogOutput(int, char**) {
         tm lt{};
         localtime_r(&t, &lt);
         char name[64];
-        snprintf(name, sizeof name, "/red_two_%04d-%02d-%02d_%02d-%02d-%02d.log", lt.tm_year + 1900, lt.tm_mon + 1, lt.tm_mday,
+        snprintf(name, sizeof name, "/%s_%04d-%02d-%02d_%02d-%02d-%02d.log", logPrefix().c_str(), lt.tm_year + 1900, lt.tm_mon + 1, lt.tm_mday,
                  lt.tm_hour, lt.tm_min, lt.tm_sec);
         s_sessionLog = dir + name;
     }
@@ -851,12 +855,12 @@ static void setupLogOutput(int argc, char** argv) {
         if (GetFileAttributesA(dir.c_str()) == INVALID_FILE_ATTRIBUTES) dir.clear();
     }
     if (dir.empty()) {
-        s_sessionLog = "red_two.log";
+        s_sessionLog = logPrefix() + ".log";
     } else {
         // keep the newest 29 old ones (names sort by time)
         std::vector<std::string> old;
         WIN32_FIND_DATAA fd;
-        if (HANDLE f = FindFirstFileA((dir + "\\red_two_*.log").c_str(), &fd); f != INVALID_HANDLE_VALUE) {
+        if (HANDLE f = FindFirstFileA((dir + "\\" + logPrefix() + "_*.log").c_str(), &fd); f != INVALID_HANDLE_VALUE) {
             do old.push_back(fd.cFileName);
             while (FindNextFileA(f, &fd));
             FindClose(f);
@@ -866,11 +870,11 @@ static void setupLogOutput(int argc, char** argv) {
         SYSTEMTIME st;
         GetLocalTime(&st);
         char name[64];
-        snprintf(name, sizeof name, "\\red_two_%04u-%02u-%02u_%02u-%02u-%02u.log", st.wYear, st.wMonth, st.wDay, st.wHour,
+        snprintf(name, sizeof name, "\\%s_%04u-%02u-%02u_%02u-%02u-%02u.log", logPrefix().c_str(), st.wYear, st.wMonth, st.wDay, st.wHour,
                  st.wMinute, st.wSecond);
         s_sessionLog = dir + name;
     }
-    if (!freopen(s_sessionLog.c_str(), "w", stderr)) freopen("red_two.log", "w", stderr);
+    if (!freopen(s_sessionLog.c_str(), "w", stderr)) freopen((logPrefix() + ".log").c_str(), "w", stderr);
 }
 
 // The session log's first lines: which build this is and how it was started (the settings
