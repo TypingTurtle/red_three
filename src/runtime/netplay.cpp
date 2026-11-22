@@ -460,6 +460,14 @@ void exchange() {
     if (poll % 600 == 0 && poll > 0) {
         const u64 h = memHash();
         s_localHash[poll] = h;
+        // R2_NETPLAY_DUMP=<folder>: main memory at each check, to compare the two machines' (desync hunting)
+        if (const char* d = getenv("R2_NETPLAY_DUMP"); d && *d) {
+            const std::string path = std::string(d) + "/" + (s_host ? "host_" : "join_") + std::to_string(poll) + ".bin";
+            if (FILE* f = fopen(path.c_str(), "wb")) {
+                fwrite(g_base + 0x80000000u, 1, kMem1Size, f);
+                fclose(f);
+            }
+        }
         std::vector<u8> m(16);
         memcpy(m.data(), &poll, 8);
         memcpy(m.data() + 8, &h, 8);

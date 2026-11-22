@@ -13,6 +13,7 @@
 #include <condition_variable>
 #endif
 
+#include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <mutex>
@@ -209,7 +210,8 @@ bool deterministic() { return s_det.load(std::memory_order_relaxed); }
 void setDeterministic(bool on) {
     if (on == s_det.load()) return;
     if (on) {
-        s_virt = rawTb() + s_warp.load();
+        // the same start on every machine (an hour in: later than anything before it here)
+        s_virt = std::max<u64>(u64(3600) * kTbClock, rawTb() + s_warp.load());
         s_virtAhead = s64(s_virt.load()) - s64(rawTb());
     }
     s_det = on;
