@@ -1998,6 +1998,38 @@ void onCommand(const u8* p, u32 len) {
                 endFrame();
                 ensureFrame();
             }
+            // The XFB is also a texture. Skipping the intro, the game fades the last frame out by
+            // drawing its XFB (512x450 RGB565 at the XFB's address) over the next ones. Display
+            // copies reach only Aurora's XFB, so that texture was the 4-bit copy the game made
+            // there at boot to clear the EFB: green for a few frames (the green screen). Each
+            // picture copy is therefore also made as an RGB565 texture copy: the top one first as
+            // the whole XFB's texture, which the copies after it in the frame fill row by row
+            // (patch 0024's enclosing copies). R2_NO_XFB_TEXTURE: as before.
+            static const bool noXfbTexture = envFlag("R2_NO_XFB_TEXTURE");
+            const u32 copyW = (s_bp[0x4A] & 0x3FF) + 1;
+            if (shown && !noXfbTexture && stride == copyW * 2 && line * stride <= dest) {
+                const u32 left = s_bp[0x49] & 0x3FF, top = (s_bp[0x49] >> 10) & 0x3FF;
+                auto texCopy = [&](u32 to, u32 srcH, u32 dstH) {
+                    u8* host = physPtr(to, 32);
+                    if (!host) return;
+                    aur(GX_AURORA_LOAD_COPY_SRC);
+                    fifo::write_u32(left);
+                    fifo::write_u32(top);
+                    fifo::write_u32(copyW);
+                    fifo::write_u32(srcH);
+                    aur(GX_AURORA_LOAD_COPY_DST);
+                    fifo::write_u32(copyW);
+                    fifo::write_u32(dstH);
+                    fifo::write_u32(4);  // GX_TF_RGB565
+                    fifo::write_u8(0);
+                    aur(GX_AURORA_LOAD_COPY_DEST);
+                    fifo::write_u64(reinterpret_cast<u64>(host));
+                    fifo::write_u8(0x61);
+                    fifo::write_u32(0x52000000u | (4u << 4) | (v & 3));  // RGB565, no clear
+                };
+                if (line == 0 && lines > h && top + lines <= 528) texCopy(dest, lines, lines);
+                texCopy(dest, h, h);
+            }
             if (shown) {
                 aur(GX_AURORA_LOAD_DISP_COPY_DST);
                 fifo::write_u32(line);
