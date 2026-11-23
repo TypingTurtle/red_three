@@ -1,0 +1,24 @@
+diff --git a/lib/dolphin/gx/GXFrameBuffer.cpp b/lib/dolphin/gx/GXFrameBuffer.cpp
+index 21a7801..6039f2c 100644
+--- a/lib/dolphin/gx/GXFrameBuffer.cpp
++++ b/lib/dolphin/gx/GXFrameBuffer.cpp
+@@ -103,6 +103,11 @@ void copy_tex(const void* dest, GXBool clear) noexcept {
+   {
+     // remembered: draws into this rectangle (from the next frame on) render a texture
+     const auto& src = g_gxState.texCopySrc;
++    // ...unless it is the whole picture (Rebel Strike's pause menu copies the 512x450 frame for its
++    // background): taken for a render-to-texture pass, the scene was drawn without widescreen and,
++    // being a clearing copy, at one scale (patch 0041) - squeezed into the left of the screen, for
++    // good once 32 rectangles were remembered (patch 0040)
++    if (static_cast<u32>(src.width) * 4 < logical_fb_size().x * 3) {
+     auto& rects = g_gxState.rttRects;
+     const bool known = std::any_of(rects.begin(), rects.end(), [&](const gfx::ClipRect& r) {
+       return r.x == src.x && r.y == src.y && r.width == src.width && r.height == src.height;
+@@ -114,6 +119,7 @@ void copy_tex(const void* dest, GXBool clear) noexcept {
+     if (clear && std::find(scratch.begin(), scratch.end(), src) == scratch.end()) {
+       scratch[g_gxState.scratchRectNext++ % scratch.size()] = src;
+     }
++    }
+   }
+   // a render-to-texture pass drawn at one scale on both axes is read back at that scale
+   const bool uniform = uniform_copy_rect(g_gxState.texCopySrc);
