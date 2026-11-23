@@ -79,6 +79,10 @@ u64 s_dumpCount = 1;  // R2_GX_DUMP=<first>[,<count>]
 u64 s_vblanks = 0;    // retraces seen (R2_GX_SKIP windows)
 u32 s_frameDraws = 0;  // draws so far in this presented frame (R2_GX_SKIP i<from>-<to>)
 bool s_topCopied = false;  // this frame already has a display copy at the XFB's first line
+// The last XFB shown, which also holds a texture copy of its picture (see the display copies):
+// a CPU-made snapshot of an XFB is drawn from it instead (see prepareTextures).
+u32 s_shownXfb = 0, s_shownXfbW = 0, s_shownXfbLines = 0;
+std::unordered_map<u32, u32> s_xfbTex;  // XFB address -> its texture copy's image0 (w, h, RGB565)
 
 // --- raw state shadowed from the stream ---
 u32 s_bpMask = 0xFFFFFF;
@@ -763,6 +767,41 @@ void prepareTextures() {
             }
             texdump::dump(fmt, w, h, mips, all, palFmt, pal, entries);
         }
+        // A CPU-made snapshot of the picture: skipping the intro early, Rebel Strike converts the
+        // shown XFB (YUV in memory) to an RGB565 texture with the CPU (7F395998, written out by
+        // locked-cache DMA) and fades it out. XFBs never reach guest memory here, so it converts
+        // zeros: a solid green picture. An XFB-sized RGB565 texture that is nearly one colour (no
+        // real picture is) is drawn from the last shown XFB's texture copy instead. R2_NO_XFB_TEXTURE: off.
+        // The XFB itself drawn as a texture (skipping the intro cutscene): its memory is whatever
+        // the game left there, so it is drawn from the texture copy made with its picture.
+        bool grab = false;
+        static const bool noXfbTexture = envFlag("R2_NO_XFB_TEXTURE");
+        if (!noXfbTexture && !s_copyDests.count(addr)) {
+            if (const auto it = s_xfbTex.find(addr); it != s_xfbTex.end() && (image0 & 0xFFFFFF) == it->second) {
+                grab = true;
+                static u32 logs = 0;
+                if (logs < 3 && ++logs) logf("gfx", "the XFB at %08X drawn as a texture: from its picture's copy", addr);
+            }
+        }
+        if (!grab && !noXfbTexture && fmt == 4 && s_shownXfb && w == s_shownXfbW && h == s_shownXfbLines && !s_copyDests.count(addr)) {
+            // nearly one colour: the converted zeros came out with a few hundred odd texels
+            const u32 bytes = w * h * 2;
+            const u8* p = physPtr(addr, bytes);
+            if (p && (p[0] | p[1])) {
+                u32 odd = 0;
+                for (u32 i = 2; i < bytes && odd <= bytes / 200; i += 2) odd += p[i] != p[0] || p[i + 1] != p[1];
+                if (odd <= bytes / 200) {
+                    if (u8* x = physPtr(s_shownXfb, 32)) {
+                        static u32 logs = 0;
+                        if (logs < 5 && ++logs)
+                            logf("gfx", "texture at %08X (%ux%u RGB565) is one colour (%02X%02X): a snapshot of an XFB; drawn from %08X's copy",
+                                 addr, w, h, p[0], p[1], s_shownXfb);
+                        host = x;
+                        grab = true;
+                    }
+                }
+            }
+        }
         aur(GX_AURORA_LOAD_TEXOBJ);
         fifo::write_u8(u8(m));
         fifo::write_u64(reinterpret_cast<u64>(host));
@@ -774,6 +813,7 @@ void prepareTextures() {
         u32 id, version;
         const u32 levels = mips ? ((mode1 >> 8) & 0xFF) / 16 + 1 : 1;
         textureIdentity(addr, image0, mips, levels, host, id, version);
+        if (grab) id = version = 0;  // a render target: Aurora resolves the copy
         fifo::write_u32(id);
         fifo::write_u32(version);
     }
@@ -2039,6 +2079,12 @@ void onCommand(const u8* p, u32 len) {
                 };
                 if (line == 0 && lines > h && top + lines <= 528) texCopy(dest, lines, lines);
                 texCopy(dest, h, h);
+                if (line == 0 && (lines == h || top + lines <= 528)) {
+                    s_xfbTex[dest] = (4u << 20) | ((lines - 1) << 10) | (copyW - 1);
+                    s_shownXfb = dest;
+                    s_shownXfbW = copyW;
+                    s_shownXfbLines = lines;
+                }
             }
             if (shown) {
                 aur(GX_AURORA_LOAD_DISP_COPY_DST);
