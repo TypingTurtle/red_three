@@ -421,6 +421,16 @@ void endFrame() {
     tileFrameEnd();
     s_inFrame = false;
     s_frames++;
+#if defined(R2_GAME_GLRE64)
+    // Rebel Strike's menu screens (results, Mission Failed...) lay the same kind of panel mosaic
+    // over 4:3 as Rogue Leader's. Its missions have no state hook here, but tiling only acts on
+    // a run of kTileRun ascending CMPR panels: in every mission, cutscene and intro capture the
+    // longest run was 2 (the menu mosaics: 30). Not in letterboxed frames (cinematics).
+    {
+        const u32 lines = viXfbLines();
+        setMenuTiling(settings::get().tileMenus && (lines == 0 || lines >= 440));
+    }
+#endif
     s_frameDraws = 0;
     s_topCopied = false;
     s_lastFrameTb = tbNow();
