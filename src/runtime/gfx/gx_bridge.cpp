@@ -2042,9 +2042,12 @@ void onCommand(const u8* p, u32 len) {
                 if (line == 0 && lines > h && top + lines <= 528) texCopy(dest, top, lines, lines);
                 if (const u32 shift = line % 4; shift == 0 || top >= shift)
                     texCopy(base + (line - shift) / 4 * (copyW * 8), top - shift, h + shift, h + shift);
-                if (line == 0 && (lines == h || top + lines <= 528)) {
+                if (line == 0 && (lines == h || top + lines <= 528))
                     s_xfbTex[dest] = (4u << 20) | ((lines - 1) << 10) | (copyW - 1);
-                    s_shownXfb = dest;
+                // the snapshot's stand-in is the last XFB whose picture is complete: switching at its
+                // top half drew a frame whose bottom half was still to come (black)
+                if (line + h >= lines && s_xfbTex.count(base)) {
+                    s_shownXfb = base;
                     s_shownXfbW = copyW;
                     s_shownXfbLines = lines;
                 }

@@ -1,0 +1,35 @@
+diff --git a/lib/dolphin/gx/GXFrameBuffer.cpp b/lib/dolphin/gx/GXFrameBuffer.cpp
+--- a/lib/dolphin/gx/GXFrameBuffer.cpp
++++ b/lib/dolphin/gx/GXFrameBuffer.cpp
+@@ -10,6 +10,8 @@
+ 
+ #include <algorithm>
+ #include <cmath>
++#include <cstdlib>
++#include <string>
+ 
+ namespace {
+ aurora::Vec2<uint32_t> scale_copy_dst(u32 logicalWidth, u32 logicalHeight, bool uniform = false) {
+@@ -121,8 +123,20 @@
+   const bool uniform = uniform_copy_rect(g_gxState.texCopySrc);
+   const auto rect = map_logical_scissor(g_gxState.texCopySrc, uniform ? 1 : 0);
+   u32 firstRow = 0;
+-  if (auto* outer = enclosing_copy(dest, g_gxState.texCopyDstWidth, g_gxState.texCopyDstHeight,
+-                                   g_gxState.texCopyFmt, firstRow)) {
++  auto* outer = enclosing_copy(dest, g_gxState.texCopyDstWidth, g_gxState.texCopyDstHeight, g_gxState.texCopyFmt,
++                               firstRow);
++  // R2_COPY_LOG (Red Three's copy log): where each texture copy goes, into a larger copy or alone
++  static const bool logCopies = std::getenv("R2_COPY_LOG") != nullptr;
++  if (logCopies) {
++    static u32 logs = 0;
++    if (logs < 2000 && ++logs) {
++      Log.info("texture copy {}x{} fmt {} to {}: {} (frame {})", g_gxState.texCopyDstWidth,
++               g_gxState.texCopyDstHeight, static_cast<int>(g_gxState.texCopyFmt), dest,
++               outer ? fmt::format("into the {}-row copy at row {}", outer->height, firstRow) : std::string("alone"),
++               aurora::gx::texture::frame_count());
++    }
++  }
++  if (outer) {
+     const auto& size = outer->handle->size;
+     const float scaleY = static_cast<float>(size.height) / static_cast<float>(outer->height);
+     const auto top = static_cast<int32_t>(std::lround(static_cast<float>(firstRow) * scaleY));
