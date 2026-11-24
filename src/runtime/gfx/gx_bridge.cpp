@@ -411,6 +411,114 @@ void frameLog(u64 endStart, u64 endDone) {
 
 void tileFrameEnd();
 
+// ---------------------------------------------------------------------------------------
+// pictures with the frame dumps
+// ---------------------------------------------------------------------------------------
+// With each frame dump (F10, R2_GX_DUMP) the picture is saved next to it: gx_frame_<n>.png. The
+// EFB is read back at each display copy of the picture (Rebel Strike copies it in two halves,
+// rendered one after the other in the same EFB rows), the copied rows cut out of each and put
+// together where the copies land in the XFB. The whole EFB of each copy is saved too
+// (gx_frame_<n>_efb<i>.png: the widescreen sides, the scratch areas). With R2_GX_SKIP (a
+// draw switched off) the picture shows what that draw added.
+struct PicturePart {
+    AuroraReadbackStream stream = 0;
+    u64 key = 0;
+    u32 w = 0, h = 0;                  // the EFB as read back
+    u32 srcTop = 0, rows = 0, line = 0;  // logical: the copied rows and where they land
+    bool done = false;
+};
+struct Picture {
+    u64 frame = 0, started = 0;
+    u32 lines = 0, copyW = 0;
+    std::vector<PicturePart> parts;
+    std::vector<std::vector<u8>> pixels;
+    bool complete = false;
+};
+std::vector<Picture> s_pictures;
+AuroraReadbackStream s_pictureStreams[4] = {};
+u64 s_pictureKey = 1;
+
+bool pictureWanted() {
+    if (!s_pictures.empty() && !s_pictures.back().complete) return true;  // the rest of an open picture
+    return s_frames >= s_dumpFrame && s_frames < s_dumpFrame + s_dumpCount;
+}
+
+void pictureCopy(u32 line, u32 lines, u32 srcTop, u32 rows, u32 copyW) {
+    if (!pictureWanted()) return;
+    if (line == 0 || s_pictures.empty() || s_pictures.back().complete) {
+        if (s_pictures.size() >= 8) return;
+        s_pictures.push_back({s_frames, s_frames, lines, copyW, {}, {}, false});
+    }
+    Picture& pic = s_pictures.back();
+    // one capture in flight per stream: a stream keeps only its newest result
+    AuroraReadbackStream* free = nullptr;
+    for (auto& st : s_pictureStreams) {
+        if (!st) st = AuroraReadbackCreateStream();
+        bool busy = false;
+        for (const Picture& p : s_pictures)
+            for (const PicturePart& part : p.parts) busy |= part.stream == st && !part.done;
+        if (!busy) { free = &st; break; }
+    }
+    if (free) {
+        PicturePart part;
+        part.stream = *free;
+        part.key = s_pictureKey++;
+        part.srcTop = srcTop;
+        part.rows = rows;
+        part.line = line;
+        if (AuroraReadbackCaptureColor(part.stream, part.key, &part.w, &part.h) && part.w && part.h) {
+            pic.parts.push_back(part);
+            pic.pixels.emplace_back();
+        }
+    }
+    if (line + rows >= lines) pic.complete = true;
+}
+
+void picturePoll() {
+    for (size_t i = 0; i < s_pictures.size();) {
+        Picture& pic = s_pictures[i];
+        bool all = true;
+        for (size_t j = 0; j < pic.parts.size(); j++) {
+            PicturePart& part = pic.parts[j];
+            if (part.done) continue;
+            pic.pixels[j].resize(size_t(part.w) * part.h * 4);
+            AuroraReadbackDest d{part.key, pic.pixels[j].data(), part.w * part.h * 4, GX_FALSE};
+            if (AuroraReadbackGet(part.stream, &d, 1) && d.found) part.done = true;
+            else all = false;
+        }
+        const bool stale = s_frames > pic.started + 30;  // results that never came: save what did
+        if (!((pic.complete && all) || stale)) { i++; continue; }
+        const std::filesystem::path dir = std::filesystem::path(mods::userDir()) / "logs";
+        const std::string base = (dir / ("gx_frame_" + std::to_string(pic.frame))).string();
+        // the picture: each part's rows (Aurora's logical frame buffer: 480 rows, no VIConfigure here)
+        u32 outW = 0, outH = 0;
+        for (const PicturePart& part : pic.parts)
+            if (part.done) {
+                outW = std::max(outW, part.w);
+                outH = std::max<u32>(outH, u32(double(pic.lines) * part.h / 480.0 + 0.5));
+            }
+        if (outW && outH) {
+            std::vector<u8> out(size_t(outW) * outH * 4, 0);
+            for (size_t i2 = 0; i2 < out.size(); i2 += 4) out[i2 + 3] = 255;
+            for (size_t j = 0; j < pic.parts.size(); j++) {
+                const PicturePart& part = pic.parts[j];
+                if (!part.done) continue;
+                const double sy = part.h / 480.0;
+                const u32 from = u32(part.srcTop * sy + 0.5), n = u32(part.rows * sy + 0.5), to = u32(part.line * sy + 0.5);
+                for (u32 r = 0; r < n && from + r < part.h && to + r < outH; r++)
+                    std::memcpy(&out[size_t(to + r) * outW * 4], &pic.pixels[j][size_t(from + r) * part.w * 4],
+                                size_t(std::min(outW, part.w)) * 4);
+                for (size_t k = 3; k < pic.pixels[j].size(); k += 4) pic.pixels[j][k] = 255;  // (EFB alpha)
+                texdump::writePng(base + "_efb" + std::to_string(j) + ".png", part.w, part.h, pic.pixels[j].data());
+            }
+            for (size_t k = 3; k < out.size(); k += 4) out[k] = 255;
+            texdump::writePng(base + ".png", outW, outH, out.data());
+            logf("gfx", "picture of frame %llu saved (%zu parts)", (unsigned long long)pic.frame, pic.parts.size());
+        }
+        s_pictures.erase(s_pictures.begin() + i);
+    }
+}
+
 void endFrame() {
     if (!s_inFrame) return;
     menuDraw();
@@ -425,6 +533,7 @@ void endFrame() {
     tileFrameEnd();
     s_inFrame = false;
     s_frames++;
+    if (!s_pictures.empty()) [[unlikely]] picturePoll();
 #if defined(R2_GAME_GLRE64)
     // Rebel Strike's menu screens (results, Mission Failed...) lay the same kind of panel mosaic
     // over 4:3 as Rogue Leader's. Its missions have no state hook here, but tiling only acts on
@@ -890,7 +999,7 @@ void dumpCommand(const u8* p, u32 len) {
     const u8 op = p[0];
     if (op >= 0x80 && op < 0xC0) {
         const u32 n = be16(p + 1), vs = n ? (len - 3) / n : 0;
-        fprintf(s_dump, "DRAW prim %02X fmt %u count %u vsize %u vcd %08X/%08X vat %08X %08X %08X:", op & 0xF8, op & 7, n,
+        fprintf(s_dump, "DRAW #%u prim %02X fmt %u count %u vsize %u vcd %08X/%08X vat %08X %08X %08X:", s_frameDraws, op & 0xF8, op & 7, n,
                 vs, s_vcdLo, s_vcdHi, s_vatA[op & 7], s_vatB[op & 7], s_vatC[op & 7]);
         for (u32 i = 3; i < len && i < 3 + 4 * vs && i < 67; i++) fprintf(s_dump, " %02X", p[i]);
         fputc('\n', s_dump);
@@ -1812,6 +1921,8 @@ void onCommand(const u8* p, u32 len) {
         s_dumpLoads.clear();
         fclose(s_dump);
         s_dump = nullptr;
+        // on screen too, so a capture is known to have worked without opening the folder
+        toast("Frame captured: gx_frame_" + std::to_string(s_dumpFrame) + ".txt");
         s_dumpFrame = ~0ull;
         logf("gfx", "frames dumped to the logs folder (gx_frame_*.txt)");
     }
@@ -1988,6 +2099,7 @@ void onCommand(const u8* p, u32 len) {
                 logf("gfx", "display copy src %u,%u %ux%u stride %u -> %08X: %s line %u of %u (%u draws in the frame) [%s]", s_bp[0x49] & 0x3FF,
                      (s_bp[0x49] >> 10) & 0x3FF, (s_bp[0x4A] & 0x3FF) + 1, h, stride, dest, shown ? "XFB" : "not in XFB",
                      line, lines, s_frameDraws, viDescribe().c_str());
+            if (shown) [[unlikely]] if (pictureWanted()) pictureCopy(line, lines, (s_bp[0x49] >> 10) & 0x3FF, h, (s_bp[0x4A] & 0x3FF) + 1);
             static const bool presentAtTexCopy = getenv("R2_NO_XFB") && atoi(getenv("R2_NO_XFB")) == 2;
             if (!disp && presentAtTexCopy) {  // debugging: show the EFB as a texture copy sees it
                 endFrame();
@@ -2016,7 +2128,7 @@ void onCommand(const u8* p, u32 len) {
             const u32 copyW = (s_bp[0x4A] & 0x3FF) + 1;
             if (shown && !noXfbTexture && stride == copyW * 2 && line * stride <= dest) {
                 const u32 left = s_bp[0x49] & 0x3FF, top = (s_bp[0x49] >> 10) & 0x3FF;
-                auto texCopy = [&](u32 to, u32 srcTop, u32 srcH, u32 dstH) {
+                auto texCopy = [&](u32 to, u32 srcTop, u32 srcH, u32 dstH, u32 rowOffset = 0) {
                     u8* host = physPtr(to, 32);
                     if (!host) return;
                     aur(GX_AURORA_LOAD_COPY_SRC);
@@ -2028,22 +2140,25 @@ void onCommand(const u8* p, u32 len) {
                     fifo::write_u32(copyW);
                     fifo::write_u32(dstH);
                     fifo::write_u32(4);  // GX_TF_RGB565
-                    fifo::write_u8(0);
+                    // at the XFB's own 512x450, as the game's snapshot is on hardware: drawn
+                    // stretched, it is the soft picture a skip or a pause fades (Aurora patch 0049)
+                    static const bool sharp = envFlag("R2_SHARP_SNAPSHOT");
+                    fifo::write_u8(u8((sharp ? 0 : 2) | rowOffset << 2));
                     aur(GX_AURORA_LOAD_COPY_DEST);
                     fifo::write_u64(reinterpret_cast<u64>(host));
                     fifo::write_u8(0x61);
                     fifo::write_u32(0x52000000u | (4u << 4) | (v & 3));  // RGB565, no clear
                 };
                 // A texture is stored in tiles of 4 rows (RGB565: 8 bytes a column per tile row), so
-                // a part copy only joins the whole XFB's texture at a row that is a multiple of 4.
-                // Rebel Strike's bottom half starts at line 226, so it joins at line 228 (skipping
-                // its first 2 rows); 226-227 stay as the whole-frame copy made with the top half
-                // took them (the scene continues below the top half there). Starting 2 rows higher
-                // instead took 2 rows above the bottom half that are not picture: a line.
+                // a copy's address can only name a row that is a multiple of 4. Rebel Strike's bottom
+                // half starts at line 226: it is copied to the tile row at 224 with a row offset of 2
+                // (Aurora patch 0049), into the whole XFB's texture made with the top half, so every
+                // line comes from its own half. Joining at 228 left 226-227 as the top half's pass
+                // had them, which the game clears (a black line across the snapshot after a skip);
+                // joining at 224 took 2 rows above the bottom half that are not picture.
                 const u32 base = dest - line * stride;
                 if (line == 0 && lines > h && top + lines <= 528) texCopy(dest, top, lines, lines);
-                if (const u32 skip = (4 - line % 4) % 4; skip < h)
-                    texCopy(base + (line + skip) / 4 * (copyW * 8), top + skip, h - skip, h - skip);
+                texCopy(base + line / 4 * (copyW * 8), top, h, h, line % 4);
                 if (line == 0 && (lines == h || top + lines <= 528))
                     s_xfbTex[dest] = (4u << 20) | ((lines - 1) << 10) | (copyW - 1);
                 // the snapshot's stand-in is the last XFB whose picture is complete: switching at its

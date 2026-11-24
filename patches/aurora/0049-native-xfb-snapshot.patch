@@ -1,0 +1,62 @@
+diff --git a/lib/dolphin/gx/GXFrameBuffer.cpp b/lib/dolphin/gx/GXFrameBuffer.cpp
+index 78eb02d..25e6155 100644
+--- a/lib/dolphin/gx/GXFrameBuffer.cpp
++++ b/lib/dolphin/gx/GXFrameBuffer.cpp
+@@ -137,11 +137,12 @@ void copy_tex(const void* dest, GXBool clear) noexcept {
+     }
+   }
+   if (outer) {
++    firstRow = std::min(firstRow + g_gxState.texCopyRowOffset, outer->height);
+     const auto& size = outer->handle->size;
+     const float scaleY = static_cast<float>(size.height) / static_cast<float>(outer->height);
+     const auto top = static_cast<int32_t>(std::lround(static_cast<float>(firstRow) * scaleY));
+-    const auto bottom = static_cast<int32_t>(
+-        std::lround(static_cast<float>(firstRow + g_gxState.texCopyDstHeight) * scaleY));
++    const auto bottom = static_cast<int32_t>(std::lround(
++        static_cast<float>(std::min(firstRow + g_gxState.texCopyDstHeight, outer->height)) * scaleY));
+     if (bottom > top) {
+       ++outer->revision;
+       const auto clearColor = clear && g_gxState.colorUpdate;
+@@ -154,7 +155,9 @@ void copy_tex(const void* dest, GXBool clear) noexcept {
+       return;
+     }
+   }
+-  const auto [dstWidth, dstHeight] = scale_copy_dst(g_gxState.texCopyDstWidth, g_gxState.texCopyDstHeight, uniform);
++  const auto [dstWidth, dstHeight] =
++      g_gxState.texCopyNative ? aurora::Vec2<uint32_t>{g_gxState.texCopyDstWidth, g_gxState.texCopyDstHeight}
++                              : scale_copy_dst(g_gxState.texCopyDstWidth, g_gxState.texCopyDstHeight, uniform);
+   const auto texCopyFmt = g_gxState.texCopyFmt;
+   const auto copy = texture::resolve_copy_texture({
+       .dest = dest,
+diff --git a/lib/gx/command_processor.cpp b/lib/gx/command_processor.cpp
+index 5b6aa36..fd3b17f 100644
+--- a/lib/gx/command_processor.cpp
++++ b/lib/gx/command_processor.cpp
+@@ -1460,7 +1460,13 @@ void handle_aurora(ByteReader& reader) noexcept {
+     g_gxState.texCopyDstWidth = reader.read<u32>();
+     g_gxState.texCopyDstHeight = reader.read<u32>();
+     g_gxState.texCopyFmt = static_cast<GXTexFmt>(reader.read<u32>());
+-    reader.skip(1); // mipmap is not implemented, but remains part of the command payload
++    // mipmap is not implemented, but remains part of the command payload. Red Three: bit 1, the
++    // copy is made at its logical size, not scaled to the render resolution;
++    // bits 2-3: the copy starts that many rows below the tile row its address names (a part
++    // copy into a larger one at a row that is not a multiple of 4)
++    const u8 flags = reader.read<u8>();
++    g_gxState.texCopyNative = (flags & 2) != 0;
++    g_gxState.texCopyRowOffset = (flags >> 2) & 3;
+     g_gxState.texCopyDstWide = true;
+   } else if (subCmd == GX_AURORA_LOAD_COPY_DEST) {
+     g_gxState.texCopyDest = reinterpret_cast<const void*>(reader.read<u64>());
+diff --git a/lib/gx/gx.hpp b/lib/gx/gx.hpp
+index 7621781..847c1e3 100644
+--- a/lib/gx/gx.hpp
++++ b/lib/gx/gx.hpp
+@@ -460,6 +460,8 @@ struct GXState {
+   u32 texCopyDstWidth = 0;
+   u32 texCopyDstHeight = 0;
+   bool texCopyDstWide = false;
++  bool texCopyNative = false; // Red Three: this copy at the logical size (the XFB snapshot)
++  u32 texCopyRowOffset = 0;   // Red Three: rows below its tile row this copy starts (0-3)
+   const void* texCopyDest = nullptr;
+   absl::flat_hash_map<const void*, CopyTextureRef> copyTextures;
+   gfx::ClipRect dispCopySrc{0, 0, 640, 480};
