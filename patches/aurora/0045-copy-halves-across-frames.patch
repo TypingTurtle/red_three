@@ -1,0 +1,14 @@
+diff --git a/lib/dolphin/gx/GXFrameBuffer.cpp b/lib/dolphin/gx/GXFrameBuffer.cpp
+--- a/lib/dolphin/gx/GXFrameBuffer.cpp
++++ b/lib/dolphin/gx/GXFrameBuffer.cpp
+@@ -76,7 +76,9 @@
+   const uint64_t frame = aurora::gx::texture::frame_count();
+   aurora::gx::GXState::CopyTextureRef* best = nullptr;
+   for (auto& [addr, ref] : g_gxState.copyTextures) {
+-    if (!ref || ref.frame != frame || ref.key.format != format || ref.width != width || ref.height <= height) {
++    // the outer copy is from this frame or the one before: a picture copied in two halves can
++    // finish in the next frame (Red Three's XFB textures: top, then bottom one frame later)
++    if (!ref || ref.frame + 1 < frame || ref.key.format != format || ref.width != width || ref.height <= height) {
+       continue;
+     }
+     const auto* base = static_cast<const u8*>(addr);
