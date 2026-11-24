@@ -1220,7 +1220,8 @@ void pageDisplay(settings::Settings& s) {
                   "resolutions it shows as a grid (Hoth's sky). Off, like Dolphin's \"Disable Dithering\" code."))
         s_changed = true;
     heading("PERFORMANCE");
-    if (fpsRow("Frame rate", s.fps, "Above 60 the game runs more frames per second at its normal speed."))
+    if (std::size(settings::kFpsChoices) > 1 &&
+        fpsRow("Frame rate", s.fps, "Above 60 the game runs more frames per second at its normal speed."))
         s_changed = s_display = true;
     if (toggleRow("Show frame rate", s.showFps, "Frames per second in the top-left corner.")) s_changed = true;
     if (toggleRow("Prepare shaders at start", s.precompileShaders,
