@@ -2036,12 +2036,14 @@ void onCommand(const u8* p, u32 len) {
                 };
                 // A texture is stored in tiles of 4 rows (RGB565: 8 bytes a column per tile row), so
                 // a part copy only joins the whole XFB's texture at a row that is a multiple of 4.
-                // Rebel Strike's bottom half starts at line 226 (copied from EFB row 2: it draws two
-                // rows of overlap above it), so it is copied from 2 rows higher, into line 224.
+                // Rebel Strike's bottom half starts at line 226, so it joins at line 228 (skipping
+                // its first 2 rows); 226-227 stay as the whole-frame copy made with the top half
+                // took them (the scene continues below the top half there). Starting 2 rows higher
+                // instead took 2 rows above the bottom half that are not picture: a line.
                 const u32 base = dest - line * stride;
                 if (line == 0 && lines > h && top + lines <= 528) texCopy(dest, top, lines, lines);
-                if (const u32 shift = line % 4; shift == 0 || top >= shift)
-                    texCopy(base + (line - shift) / 4 * (copyW * 8), top - shift, h + shift, h + shift);
+                if (const u32 skip = (4 - line % 4) % 4; skip < h)
+                    texCopy(base + (line + skip) / 4 * (copyW * 8), top + skip, h - skip, h - skip);
                 if (line == 0 && (lines == h || top + lines <= 528))
                     s_xfbTex[dest] = (4u << 20) | ((lines - 1) << 10) | (copyW - 1);
                 // the snapshot's stand-in is the last XFB whose picture is complete: switching at its
