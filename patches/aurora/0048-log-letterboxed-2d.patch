@@ -1,0 +1,55 @@
+diff --git a/lib/gx/command_processor.cpp b/lib/gx/command_processor.cpp
+--- a/lib/gx/command_processor.cpp
++++ b/lib/gx/command_processor.cpp
+@@ -17,6 +17,7 @@
+ #include <tracy/Tracy.hpp>
+ 
+ #include <algorithm>
++#include <cstdlib>
+ #include <array>
+ #include <atomic>
+ #include <bit>
+@@ -525,6 +526,10 @@
+   for (u32 i = 0; i < vtxCount; ++i) {
+     Vec4<float> mv;
+     if (!vertex_mv_pos(layout, verts + i * vtxSize, mv)) {
++      static u32 logs = 0;
++      if (std::getenv("R2_COPY_LOG") && v > 1.f && logs < 8 && ++logs) {
++        Log.info("letterboxed 2D draw (k {} v {}): positions not readable, {} vertices: scaled as 2D", k, v, vtxCount);
++      }
+       return {1.f / k, 1.f / v};
+     }
+     const float w = proj.m3[0] * mv[0] + proj.m3[1] * mv[1] + proj.m3[2] * mv[2] + proj.m3[3];
+@@ -537,12 +542,32 @@
+     minY = std::min(minY, ndcY);
+     maxY = std::max(maxY, ndcY);
+   }
++  // R2_COPY_LOG (Red Three): how 2D draws in letterboxed frames are placed (the first few kinds)
++  static const bool logLetterbox = std::getenv("R2_COPY_LOG") != nullptr;
++  const auto logPlacement = [&](const char* how) {
++    if (!logLetterbox || v <= 1.f) {
++      return;
++    }
++    static std::array<std::array<int, 5>, 48> seen{};
++    static u32 count = 0;
++    const std::array<int, 5> key{static_cast<int>(std::lround(minX * 100)), static_cast<int>(std::lround(maxX * 100)),
++                                 static_cast<int>(std::lround(minY * 100)), static_cast<int>(std::lround(maxY * 100)),
++                                 static_cast<int>(how[0])};
++    if (count < seen.size() && std::find(seen.begin(), seen.begin() + count, key) == seen.begin() + count) {
++      seen[count++] = key;
++      Log.info("letterboxed 2D draw (k {} v {}): x {:.2f}..{:.2f} y {:.2f}..{:.2f}, {} vertices: {}", k, v, minX, maxX,
++               minY, maxY, vtxCount, how);
++    }
++  };
+   if (minX <= -0.95f && maxX >= 0.95f) {
++    logPlacement("spans the width, fills");
+     return {};
+   }
+   if (v > 1.f && g_gxState.pixelFmt == GX_PF_RGB565_Z16) {
++    logPlacement("letterbox picture scale");
+     return letterbox_picture_scale(k, v);
+   }
++  logPlacement("scaled as 2D");
+   const float center = (minX + maxX) * 0.5f;
+   if (is_screen_sprite(prim, vtxCount)) {
+     const float cy = (minY + maxY) * 0.5f;
