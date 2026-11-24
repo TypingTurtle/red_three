@@ -159,6 +159,12 @@ const char* player2Name(Player2 p);  // as settings.ini writes it
 inline constexpr int kGyroSpeedMin = 10, kGyroSpeedMax = 400;
 float resolutionScale(Resolution r);  // Aurora frame buffer scale; 0 = the window's own size
 float aspectValue(Aspect a);          // width / height (4:3 = the game's own); -1 = the window's
+#if defined(R2_GAME_GLRE64)
+// Rebel Strike runs its game logic per frame in places (above 60 those levels run too fast and
+// break), so it stays at 60 until that is fixed: a saved fps= of another rate is ignored.
+inline constexpr int kFpsChoices[] = {60};
+#else
 inline constexpr int kFpsChoices[] = {60, 90, 120, 144};
+#endif
 
 }  // namespace rt::settings

@@ -1430,6 +1430,9 @@ void tileDraw(const u8* p, u32 len) {
             if (s_tileRun.size() >= kTileRun) {
                 for (u64 k : s_tileRun) s_tileTex[k] = {s_frames};
                 s_tileRunOk = true;
+                static u32 logs = 0;
+                if (logs < 20 && ++logs)
+                    logf("gfx", "menu background tiles from %08X: copies at the sides (%d each side)", u32(s_tileRun.front()), tileCopies());
             }
         }
     }
