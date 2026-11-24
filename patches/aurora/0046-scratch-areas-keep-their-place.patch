@@ -1,0 +1,44 @@
+diff --git a/lib/gx/gx.cpp b/lib/gx/gx.cpp
+--- a/lib/gx/gx.cpp
++++ b/lib/gx/gx.cpp
+@@ -295,12 +295,17 @@
+   if (!target_scales(scaleX, scaleY)) {
+     return logicalViewport;
+   }
++  // Render-to-texture areas are drawn at one scale on both axes, but keep their place on each
++  // axis's own scale: games keep scratch areas off the shown picture (Rebel Strike: right of its
++  // 512 columns), and at the smaller one-axis scale they moved into it (a black square where the
++  // area is cleared after copying). At its own scale a rect still fits in the EFB's room.
++  const float originX = scaleX, originY = scaleY;
+   if (uniform_rtt_viewport(logicalViewport)) {
+     scaleX = scaleY = std::min(scaleX, scaleY);
+   }
+   return {
+-      .left = logicalViewport.left * scaleX,
+-      .top = logicalViewport.top * scaleY,
++      .left = logicalViewport.left * originX,
++      .top = logicalViewport.top * originY,
+       .width = logicalViewport.width * scaleX,
+       .height = logicalViewport.height * scaleY,
+       .znear = logicalViewport.znear,
+@@ -321,14 +326,16 @@
+     return logicalScissor;
+   }
+   const auto [targetWidth, targetHeight] = gfx::get_render_target_size();
++  // one scale for the size, each axis's own for the place (map_logical_viewport)
++  const float originX = scaleX, originY = scaleY;
+   if (uniform < 0 ? uniform_rtt_viewport(g_gxState.logicalViewport) : uniform > 0) {
+     scaleX = scaleY = std::min(scaleX, scaleY);
+   }
+ 
+-  const float left = static_cast<float>(logicalScissor.x) * scaleX;
+-  const float top = static_cast<float>(logicalScissor.y) * scaleY;
+-  const float right = static_cast<float>(logicalScissor.x + logicalScissor.width) * scaleX;
+-  const float bottom = static_cast<float>(logicalScissor.y + logicalScissor.height) * scaleY;
++  const float left = static_cast<float>(logicalScissor.x) * originX;
++  const float top = static_cast<float>(logicalScissor.y) * originY;
++  const float right = left + static_cast<float>(logicalScissor.width) * scaleX;
++  const float bottom = top + static_cast<float>(logicalScissor.height) * scaleY;
+ 
+   const auto mappedLeft = std::clamp(static_cast<int32_t>(std::floor(left)), 0, static_cast<int32_t>(targetWidth));
+   const auto mappedTop = std::clamp(static_cast<int32_t>(std::floor(top)), 0, static_cast<int32_t>(targetHeight));
