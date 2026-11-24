@@ -2016,12 +2016,12 @@ void onCommand(const u8* p, u32 len) {
             const u32 copyW = (s_bp[0x4A] & 0x3FF) + 1;
             if (shown && !noXfbTexture && stride == copyW * 2 && line * stride <= dest) {
                 const u32 left = s_bp[0x49] & 0x3FF, top = (s_bp[0x49] >> 10) & 0x3FF;
-                auto texCopy = [&](u32 to, u32 srcH, u32 dstH) {
+                auto texCopy = [&](u32 to, u32 srcTop, u32 srcH, u32 dstH) {
                     u8* host = physPtr(to, 32);
                     if (!host) return;
                     aur(GX_AURORA_LOAD_COPY_SRC);
                     fifo::write_u32(left);
-                    fifo::write_u32(top);
+                    fifo::write_u32(srcTop);
                     fifo::write_u32(copyW);
                     fifo::write_u32(srcH);
                     aur(GX_AURORA_LOAD_COPY_DST);
@@ -2034,8 +2034,14 @@ void onCommand(const u8* p, u32 len) {
                     fifo::write_u8(0x61);
                     fifo::write_u32(0x52000000u | (4u << 4) | (v & 3));  // RGB565, no clear
                 };
-                if (line == 0 && lines > h && top + lines <= 528) texCopy(dest, lines, lines);
-                texCopy(dest, h, h);
+                // A texture is stored in tiles of 4 rows (RGB565: 8 bytes a column per tile row), so
+                // a part copy only joins the whole XFB's texture at a row that is a multiple of 4.
+                // Rebel Strike's bottom half starts at line 226 (copied from EFB row 2: it draws two
+                // rows of overlap above it), so it is copied from 2 rows higher, into line 224.
+                const u32 base = dest - line * stride;
+                if (line == 0 && lines > h && top + lines <= 528) texCopy(dest, top, lines, lines);
+                if (const u32 shift = line % 4; shift == 0 || top >= shift)
+                    texCopy(base + (line - shift) / 4 * (copyW * 8), top - shift, h + shift, h + shift);
                 if (line == 0 && (lines == h || top + lines <= 528)) {
                     s_xfbTex[dest] = (4u << 20) | ((lines - 1) << 10) | (copyW - 1);
                     s_shownXfb = dest;
